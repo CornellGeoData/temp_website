@@ -319,7 +319,7 @@ export class GlobeEngine {
 
     // ---- pins ----
     this.BEATS = ([
-      { lat: 48, lon: -30, color: 0x6cc4e0 },
+      { lat: 32, lon: -65, color: 0x6cc4e0 },
       { lat: 22, lon: -75, color: 0x4bb3a6 },
       { lat: -8, lon: 22,  color: 0xc98b5a },
       { lat: 35, lon: 108, color: 0x9b8ce0 },
@@ -364,6 +364,7 @@ export class GlobeEngine {
     this.buildAlgaeDrone(group, R);
 
     group.rotation.y = this.BEATS[0].rotY;
+    group.rotation.x = this.BEATS[0].rotX;
   }
 
   vox(parent: THREE.Object3D, w: number, h: number, d: number, color: THREE.ColorRepresentation, x: number, y: number, z: number, emissive?: THREE.ColorRepresentation): VoxMesh {
@@ -555,9 +556,10 @@ export class GlobeEngine {
     // target rotation
     let rotY, rotX;
     if (p <= bStart) {
-      const a = bStart > 0 ? Math.min(p / bStart, 1) : 1;
-      rotY = B[0].rotY - (1 - a) * (Math.PI * 0.55) + this.time * 0.02 * (1 - a);
-      rotX = lerp(0, B[0].rotX, ease(a));
+      // brief pan-in on load: settle from ~5% of a turn west of Bermuda over ~1.1s
+      const panT = ease(Math.min(this.time / 1.1, 1));
+      rotY = B[0].rotY + (1 - panT) * (Math.PI * 0.1);
+      rotX = B[0].rotX;
     } else if (p >= bEnd) {
       rotY = B[N-1].rotY; rotX = B[N-1].rotX;
     } else {
