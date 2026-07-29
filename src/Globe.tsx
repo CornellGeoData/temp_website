@@ -59,6 +59,7 @@ export default function Globe() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const heroRef = useRef<HTMLElement | null>(null);
   const hintRef = useRef<HTMLElement | null>(null);
+  const scrimRef = useRef<HTMLElement | null>(null);
   const beatRefs = useRef<(HTMLElement | null)[]>([]);
   const dotRefs = useRef<(HTMLElement | null)[]>([]);
 
@@ -69,6 +70,7 @@ export default function Globe() {
       canvasEl: canvasRef.current!,
       heroEl: heroRef.current!,
       hintEl: hintRef.current!,
+      scrimEl: scrimRef.current!,
       beatEls: beatRefs.current,
       dotEls: dotRefs.current,
     });
@@ -77,20 +79,22 @@ export default function Globe() {
 
   return (
     <section ref={sceneRef} style={{ position: 'relative', height: '640vh' }}>
-      <div style={{ position: 'sticky', top: 0, height: '100vh', width: '100%', overflow: 'hidden' }}>
+      <div className="globe-sticky" style={{ position: 'sticky', top: 0, width: '100%', overflow: 'hidden' }}>
         <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />
 
         {/* legibility gradients */}
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(90deg,rgba(8,11,15,0.92) 0%,rgba(8,11,15,0.55) 34%,rgba(8,11,15,0) 62%)' }} />
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(140% 120% at 70% 45%,rgba(8,11,15,0) 55%,rgba(8,11,15,0.85) 100%)' }} />
+        <div ref={(el: HTMLDivElement | null) => { scrimRef.current = el; }} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <div className="legibility-gradient-1" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg,rgba(8,11,15,0.92) 0%,rgba(8,11,15,0.55) 34%,rgba(8,11,15,0) 62%)' }} />
+          <div className="legibility-gradient-2" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(140% 120% at 70% 45%,rgba(8,11,15,0) 55%,rgba(8,11,15,0.85) 100%)' }} />
+        </div>
 
         {/* HERO */}
-        <div ref={(el: HTMLDivElement | null) => { heroRef.current = el; }} style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: 'min(560px,50%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 0 0 clamp(24px,5vw,72px)', zIndex: 10, willChange: 'opacity,transform' }}>
+        <div ref={(el: HTMLDivElement | null) => { heroRef.current = el; }} className="hero-panel" style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: 'min(560px,50%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 0 0 clamp(24px,5vw,72px)', zIndex: 10, willChange: 'opacity,transform' }}>
           <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#5bb98a', marginBottom: 22 }}>Cornell University · Project Team</div>
           <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 'clamp(52px,6.4vw,92px)', lineHeight: 0.95, letterSpacing: '-0.03em', margin: 0 }}>Geo<span style={{ color: '#5bb98a' }}>Data</span></h1>
           <p style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 500, fontSize: 'clamp(18px,1.7vw,24px)', color: '#cdd9df', margin: '20px 0 0', letterSpacing: '0.02em' }}>Design. Build. Deploy.</p>
           <p style={{ fontSize: 16.5, lineHeight: 1.6, color: '#a9bcc6', maxWidth: 440, margin: '22px 0 0' }}>We are Cornell's student team of engineers and earth scientists building low-cost instruments that measure a changing planet — from the soil under Cayuga Lake to the edge of the atmosphere.</p>
-          <div style={{ display: 'flex', gap: 14, marginTop: 34 }}>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 34 }}>
             <a href="#join" style={{ display: 'inline-block', padding: '13px 26px', borderRadius: 999, background: '#5bb98a', color: '#08130c', fontWeight: 600, fontSize: 15 }}>Join the team</a>
             <a href="#projects" style={{ display: 'inline-block', padding: '13px 26px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)', color: '#e6ecf0', fontWeight: 500, fontSize: 15 }}>See our projects</a>
           </div>
@@ -101,6 +105,7 @@ export default function Globe() {
           <div
             key={beat.label}
             ref={(el: HTMLElement | null) => { beatRefs.current[i] = el; }}
+            className="beat-card"
             style={{ position: 'absolute', bottom: '12vh', left: 'clamp(24px,5vw,72px)', width: 'min(480px,86%)', opacity: 0, zIndex: 10, willChange: 'opacity,transform' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: beat.color, marginBottom: 14 }}>
@@ -114,7 +119,7 @@ export default function Globe() {
         ))}
 
         {/* beat progress dots */}
-        <div style={{ position: 'absolute', right: 38, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 14, zIndex: 10 }}>
+        <div className="beat-dots" style={{ position: 'absolute', right: 38, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 14, zIndex: 10 }}>
           {BEAT_INFO.map((beat, i) => (
             <span
               key={beat.label}

@@ -7,6 +7,7 @@ export interface MountArgs {
   canvasEl: HTMLCanvasElement;
   heroEl: HTMLElement;
   hintEl: HTMLElement;
+  scrimEl: HTMLElement;
   beatEls: (HTMLElement | null)[];
   dotEls: (HTMLElement | null)[];
 }
@@ -39,6 +40,7 @@ export class GlobeEngine {
   canvasEl!: HTMLCanvasElement;
   heroEl!: HTMLElement;
   hintEl!: HTMLElement;
+  scrimEl!: HTMLElement;
   beatCards!: (HTMLElement | null)[];
   dots!: (HTMLElement | null)[];
 
@@ -52,6 +54,7 @@ export class GlobeEngine {
   halfWidth = 2.4;
   userYaw = 0;
   userPitch = 0;
+  isMobile = false;
 
   onScroll!: () => void;
   onResize!: () => void;
@@ -89,11 +92,12 @@ export class GlobeEngine {
   rotors!: VoxMesh[];
   scanBeam!: THREE.Mesh<THREE.ConeGeometry, THREE.MeshBasicMaterial>;
 
-  mount({ sceneEl, canvasEl, heroEl, hintEl, beatEls, dotEls }: MountArgs): void {
+  mount({ sceneEl, canvasEl, heroEl, hintEl, scrimEl, beatEls, dotEls }: MountArgs): void {
     this.sceneEl = sceneEl;
     this.canvasEl = canvasEl;
     this.heroEl = heroEl;
     this.hintEl = hintEl;
+    this.scrimEl = scrimEl;
     this.beatCards = beatEls;
     this.dots = dotEls;
 
@@ -115,9 +119,11 @@ export class GlobeEngine {
       const renderer = this.renderer;
       const camera = this.camera;
       const w = window.innerWidth, h = window.innerHeight;
+      this.isMobile = w <= 720;
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
+      camera.position.z = this.isMobile ? 4.3 : 3.4;
       camera.updateProjectionMatrix();
       const halfH = Math.tan((camera.fov * Math.PI / 180) / 2) * camera.position.z;
       this.halfWidth = halfH * camera.aspect;
@@ -596,7 +602,9 @@ export class GlobeEngine {
       this.heroEl.style.transform = `translateY(${(1 - o) * -26}px)`;
     }
     if (this.hintEl) this.hintEl.style.opacity = String(Math.max(0, 1 - p / 0.08));
+    let mostVisibleCard: HTMLElement | null = null;
     if (this.beatCards) {
+      let bestO = -1;
       this.beatCards.forEach((el, i) => {
         if (!el) return;
         const pc = bStart + i * span;
@@ -604,7 +612,26 @@ export class GlobeEngine {
         el.style.opacity = String(o);
         el.style.transform = `translateY(${(1 - o) * 24}px)`;
         el.style.pointerEvents = o > 0.5 ? 'auto' : 'none';
+        if (o > bestO) { bestO = o; mostVisibleCard = el; }
       });
+    }
+    if (this.scrimEl) {
+      // on mobile, once the hero copy has faded the visible content (beat
+      // cards) sits in the bottom half of the screen — shrink the scrim to
+      // that band, using the on-screen top of the nearest card's label
+      // (its first child, flush with the card's own top edge) as the
+      // target so there's no gap between the scrim and the label
+      if (this.isMobile) {
+        const heroT = ease(Math.max(0, Math.min(1, p / 0.13)));
+        const card = mostVisibleCard ?? this.beatCards?.[0] ?? null;
+        const scrimPad = 24; // one standard spacing unit (matches the mobile section/hero-panel padding)
+        const targetPct = card
+          ? Math.max(0, Math.min(100, ((card.getBoundingClientRect().top - scrimPad) / window.innerHeight) * 100))
+          : 42;
+        this.scrimEl.style.clipPath = `inset(${lerp(0, targetPct, heroT)}% 0 0 0)`;
+      } else {
+        this.scrimEl.style.clipPath = 'none';
+      }
     }
     if (this.dots) this.dots.forEach((el, i) => {
       if (!el) return;

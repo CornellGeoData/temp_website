@@ -10,6 +10,8 @@ body {
   color: #e6ecf0;
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 a {
@@ -39,5 +41,91 @@ a:hover {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+.globe-sticky {
+  height: 100vh;
+  height: 100dvh;
+}
+
+@media (max-width: 720px) {
+  .site-header {
+    padding: 14px 16px !important;
+  }
+
+  .site-nav {
+    gap: 12px !important;
+  }
+
+  .site-nav-links {
+    display: none !important;
+  }
+
+  .menu-toggle {
+    display: flex !important;
+  }
+
+  .logo-link {
+    gap: 8px !important;
+  }
+
+  .logo-text {
+    font-size: 16px !important;
+  }
+
+  .nav-join-btn {
+    padding: 8px 14px !important;
+    font-size: 13.5px !important;
+  }
+
+  /* reserve safe zones so centered content can't drift under the fixed
+     header or into the "scroll to explore" hint on short viewports */
+  .hero-panel {
+    width: 100% !important;
+    padding: 92px 24px 96px !important;
+  }
+
+  /* on mobile the hero text spans the full width, so the desktop gradients
+     (tuned to darken only the left ~62%) leave the right side of the
+     screen with little contrast against the globe behind it — replace
+     with a full-width scrim */
+  .legibility-gradient-1 {
+    background: rgba(8, 11, 15, 0.58) !important;
+  }
+
+  .legibility-gradient-2 {
+    background: radial-gradient(
+      120% 100% at 50% 50%,
+      rgba(8, 11, 15, 0.15) 0%,
+      rgba(8, 11, 15, 0.65) 100%
+    ) !important;
+  }
+
+  .hero-panel h1,
+  .hero-panel p,
+  .hero-panel > div:first-child {
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65), 0 1px 3px rgba(0, 0, 0, 0.85);
+  }
+
+  .beat-card {
+    width: min(480px, 88%) !important;
+  }
+
+  .beat-dots {
+    display: none !important;
+  }
+
+  #projects,
+  #partners {
+    padding: 72px 24px !important;
+  }
+
+  #impact {
+    padding: 64px 24px !important;
+  }
+
+  #join {
+    padding: 84px 24px !important;
   }
 }
