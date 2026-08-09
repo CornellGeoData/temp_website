@@ -325,10 +325,10 @@ export class GlobeEngine {
 
     // ---- pins ----
     this.BEATS = ([
-      { lat: 32, lon: -65, color: 0x6cc4e0 },
+      { lat: 32, lon: -65, color: 0x7f9fc9 },
       { lat: 22, lon: -75, color: 0x4bb3a6 },
       { lat: -8, lon: 22,  color: 0xc98b5a },
-      { lat: 35, lon: 108, color: 0x9b8ce0 },
+      { lat: 35, lon: 108, color: 0xc47b8a },
       { lat: 6,  lon: -155, color: 0xe0b45a },
     ] as Array<{ lat: number; lon: number; color: number }>).map((b) => ({ ...b, ...this.faceRot(b.lat, b.lon) }));
 
@@ -669,11 +669,10 @@ export class GlobeEngine {
       }
     }
 
-    // big ben gold tip twinkle
     if (this.bigben) {
       const tip = this.bigben.children[this.bigben.children.length - 1] as VoxMesh | undefined;
       if (tip && tip.material && tip.material.emissiveIntensity !== undefined)
-        tip.material.emissiveIntensity = 0.6 + Math.sin(this.time * 5) * 0.35;
+        tip.material.emissiveIntensity = 0.6;
     }
     // tethersonde: slow up/down loop + stretching tether + downlink beam
     if (this.tetherBalloon && this.tetherLine) {
@@ -712,7 +711,7 @@ export class GlobeEngine {
       drone.position.x = beamX;
       drone.position.y = 0.11 + Math.sin(this.time * 3) * 0.006; // hover bob
       drone.visible = prog > 0.001 && prog < 0.999 || near;
-      if (this.scanBeam) this.scanBeam.material.opacity = near ? 0.30 + Math.sin(this.time * 8) * 0.08 : 0.12;
+      if (this.scanBeam) this.scanBeam.material.opacity = near ? 0.30 : 0.12;
       if (this.rotors) this.rotors.forEach((r) => { r.rotation.y += 0.9; });
       algaeTiles.forEach((m) => {
         const cleaned = m.userData.lx <= beamX;
@@ -728,8 +727,7 @@ export class GlobeEngine {
     // pins
     if (this.pins) this.pins.forEach((pin, i) => {
       const on = i === active;
-      const pulse = 1 + (on ? 0.35 + Math.sin(this.time * 4) * 0.18 : 0);
-      pin.group.scale.setScalar(on ? pulse : 0.62);
+      pin.group.scale.setScalar(on ? 1.35 : 0.62);
       pin.core.material.emissiveIntensity = on ? 1.8 : 0.7;
       pin.halo.material.opacity = on ? 0.32 : 0.12;
     });

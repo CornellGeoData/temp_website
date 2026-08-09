@@ -2,13 +2,62 @@
   box-sizing: border-box;
 }
 
+@font-face {
+  font-family: 'Zelda';
+  src: url('/fonts/Zelda_Demo.ttf');
+}
+
+@font-face {
+  font-family: 'Clingy';
+  src: url('/fonts/clingy.ttf');
+}
+
+@font-face {
+  font-family: 'Resiple';
+  src: url('/fonts/resiple.ttf');
+  font-weight: normal;
+}
+
+@font-face {
+  font-family: 'Resiple';
+  src: url('/fonts/resiple-bold.ttf');
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: 'Parachutes Sans';
+  src: url('/fonts/parachutes-sans.ttf');
+}
+
+@font-face {
+  font-family: 'Natural Mono';
+  src: url('/fonts/natural-mono.ttf');
+}
+
+@font-face {
+  font-family: 'Cx Mono';
+  src: url('/fonts/cx-mono.ttf');
+}
+
+@font-face {
+  font-family: 'Manti Sans';
+  src: url('/fonts/manti-sans.otf');
+  font-weight: normal;
+}
+
+@font-face {
+  font-family: 'Manti Sans';
+  src: url('/fonts/manti-sans-bold.otf');
+  font-weight: bold;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
   background: #080b0f;
   color: #e6ecf0;
-  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-family: 'Resiple', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -26,22 +75,6 @@ a:hover {
 ::selection {
   background: #5bb98a;
   color: #08130c;
-}
-
-@keyframes bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(7px);
-  }
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .globe-sticky {
@@ -86,22 +119,6 @@ a:hover {
     padding: 92px 24px 96px !important;
   }
 
-  /* on mobile the hero text spans the full width, so the desktop gradients
-     (tuned to darken only the left ~62%) leave the right side of the
-     screen with little contrast against the globe behind it — replace
-     with a full-width scrim */
-  .legibility-gradient-1 {
-    background: rgba(8, 11, 15, 0.58) !important;
-  }
-
-  .legibility-gradient-2 {
-    background: radial-gradient(
-      120% 100% at 50% 50%,
-      rgba(8, 11, 15, 0.15) 0%,
-      rgba(8, 11, 15, 0.65) 100%
-    ) !important;
-  }
-
   .hero-panel h1,
   .hero-panel p,
   .hero-panel > div:first-child {
@@ -117,12 +134,8 @@ a:hover {
   }
 
   #projects,
-  #partners {
+  #members {
     padding: 72px 24px !important;
-  }
-
-  #impact {
-    padding: 64px 24px !important;
   }
 
   #join {
