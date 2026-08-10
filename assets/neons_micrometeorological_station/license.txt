@@ -1,0 +1,11 @@
+Model Information:
+* title:	NEON's Micrometeorological Station
+* source:	https://sketchfab.com/3d-models/neons-micrometeorological-station-fc57a36162f2412fab6f016ec2b23cb8
+* author:	NEONscience (https://sketchfab.com/NEONscience)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "NEON's Micrometeorological Station" (https://sketchfab.com/3d-models/neons-micrometeorological-station-fc57a36162f2412fab6f016ec2b23cb8) by NEONscience (https://sketchfab.com/NEONscience) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

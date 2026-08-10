@@ -3,6 +3,16 @@
 }
 
 @font-face {
+  font-family: 'Sunrise Brown';
+  src: url('/fonts/sunrise-brown.otf');
+}
+
+@font-face {
+  font-family: 'Bertolt Brecht';
+  src: url('/fonts/bertolt-brecht.ttf');
+}
+
+@font-face {
   font-family: 'Zelda';
   src: url('/fonts/Zelda_Demo.ttf');
 }
@@ -12,16 +22,11 @@
   src: url('/fonts/clingy.ttf');
 }
 
+/* resiple-bold.ttf is an outline/hollow face, not a true bold — register only
+   the solid regular and let the browser synthesize bold from it */
 @font-face {
   font-family: 'Resiple';
   src: url('/fonts/resiple.ttf');
-  font-weight: normal;
-}
-
-@font-face {
-  font-family: 'Resiple';
-  src: url('/fonts/resiple-bold.ttf');
-  font-weight: bold;
 }
 
 @font-face {
@@ -64,7 +69,7 @@ body {
 }
 
 a {
-  color: #5bb98a;
+  color: #086727;
   text-decoration: none;
 }
 
@@ -73,8 +78,8 @@ a:hover {
 }
 
 ::selection {
-  background: #5bb98a;
-  color: #08130c;
+  background: #086727;
+  color: #e6ecf0;
 }
 
 .globe-sticky {

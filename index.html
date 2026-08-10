@@ -2,58 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GeoData</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <!-- font test: press Y to cycle every font through /public/fonts — delete when done -->
-    <script>
-      (() => {
-        const files = {
-          'Bertolt Brecht': 'bertoltbrecht.ttf',
-          'Clingy': 'clingy.ttf',
-          'Cx Mono': 'CxMonoTrial-Regular.ttf',
-          'HyperPolar': 'HyperPolarRegular.otf',
-          'Manti Sans': 'Manti Sans Regular Demo.otf',
-          'Monkey': 'monkey.ttf',
-          'Mono Spatial': 'MonoSpatial.ttf',
-          'Nice Paper': 'Nice Paper.ttf',
-          'Parachutes Sans': 'PARACHUTESSANS-Regular.ttf',
-          'Quaint HF': 'Quaint HF.ttf',
-          'Resiple': 'RESIR___.TTF',
-          'Scolth': 'Scolth Free.ttf',
-          'Sunrise Brown': 'Sunrise Brown.otf',
-          'Zelda': 'Zelda_Demo.ttf',
-        };
-        const fonts = Object.keys(files);
-        const faces = fonts
-          .map((n) => `@font-face{font-family:'test ${n}';src:url('/test-fonts/${encodeURIComponent(files[n])}')}`)
-          .join('');
-        document.head.insertAdjacentHTML('beforeend', `<style>${faces}</style>`);
-        const override = document.createElement('style');
-        document.head.appendChild(override);
-        const badge = document.createElement('div');
-        badge.style.cssText =
-          'position:fixed;bottom:12px;right:12px;z-index:9999;background:#000;color:#5bb98a;font:13px monospace;padding:8px 14px;border-radius:6px;pointer-events:none';
-        badge.textContent = 'font: site default (press Y)';
-        document.body.appendChild(badge);
-        let i = -1;
-        addEventListener('keydown', (e) => {
-          if (e.key.toLowerCase() !== 'y' || e.metaKey || e.ctrlKey) return;
-          i = (i + 1) % (fonts.length + 1);
-          if (i === fonts.length) {
-            override.textContent = '';
-            badge.textContent = 'font: site default';
-            i = -1;
-          } else {
-            override.textContent = `*{font-family:'test ${fonts[i]}' !important}`;
-            badge.textContent = `font: ${fonts[i]} (${i + 1}/${fonts.length})`;
-          }
-        });
-      })();
-    </script>
   </body>
 </html>

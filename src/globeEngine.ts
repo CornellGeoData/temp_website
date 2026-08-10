@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Framework-agnostic three.js voxel-globe engine. Mounted onto a <canvas> +
 // a handful of overlay DOM nodes by Globe.tsx; has no React dependency itself.
@@ -46,6 +47,7 @@ export class GlobeEngine {
 
   _destroyed = false;
   _noWebGL = false;
+  _instant = false; // ?snap: settle camera instantly (dev framing checks)
   _raf?: number;
   _dragCleanup?: () => void;
 
@@ -58,6 +60,7 @@ export class GlobeEngine {
 
   onScroll!: () => void;
   onResize!: () => void;
+  onKeyNav!: (e: KeyboardEvent) => void;
 
   // ---- three.js scene graph (all set unconditionally by initThree, before
   // the WebGL-availability gate that mount() checks prior to ever calling
@@ -73,6 +76,7 @@ export class GlobeEngine {
 
   sat!: THREE.Group;
   satBody!: THREE.Group;
+  dishAim?: THREE.Group; // set once the dish model loads; tracks the satellite
   satPackets!: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>[];
 
   bigben!: THREE.Group;
@@ -102,6 +106,8 @@ export class GlobeEngine {
     this.dots = dotEls;
 
     this._destroyed = false;
+    this._instant = new URLSearchParams(window.location.search).has('snap');
+    if (this._instant) (window as unknown as { __eng?: GlobeEngine }).__eng = this; // dev only
     this.time = 0;
     this.p = 0;
     this.halfWidth = 2.4;
@@ -128,8 +134,28 @@ export class GlobeEngine {
       const halfH = Math.tan((camera.fov * Math.PI / 180) / 2) * camera.position.z;
       this.halfWidth = halfH * camera.aspect;
     };
+    // arrow keys step back/forth between checkpoints while the globe is on
+    // screen; outside the sequence they keep their native scroll behavior
+    this.onKeyNav = (e: KeyboardEvent) => {
+      const fwd = e.key === 'ArrowDown' || e.key === 'ArrowRight';
+      const back = e.key === 'ArrowUp' || e.key === 'ArrowLeft';
+      if (!fwd && !back) return;
+      const total = this.sceneEl ? this.sceneEl.offsetHeight - window.innerHeight : 0;
+      if (total <= 0 || this.p >= 0.999) return;
+      const bStart = 0.24, bEnd = 0.96, N = this.BEATS.length;
+      const span = (bEnd - bStart) / (N - 1);
+      let idx: number;
+      if (this.p < bStart - 0.01) idx = fwd ? 0 : -1;
+      else idx = Math.round((this.p - bStart) / span) + (fwd ? 1 : -1);
+      if (idx < 0 && this.p <= 0) return;
+      if (idx > N - 1) return; // let the native scroll carry on past the globe
+      e.preventDefault();
+      const targetP = idx < 0 ? 0 : bStart + idx * span;
+      window.scrollTo({ top: targetP * total, behavior: 'smooth' });
+    };
     window.addEventListener('scroll', this.onScroll, { passive: true });
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('keydown', this.onKeyNav);
 
     this.initThree();
     if (this._noWebGL) return;
@@ -144,6 +170,7 @@ export class GlobeEngine {
     if (this._raf) cancelAnimationFrame(this._raf);
     window.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('keydown', this.onKeyNav);
     if (this._dragCleanup) this._dragCleanup();
     if (this.renderer) this.renderer.dispose();
   }
@@ -251,6 +278,7 @@ export class GlobeEngine {
       }
       inst.instanceMatrix.needsUpdate = true;
       if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+      inst.name = 'voxel-earth';
       group.add(inst);
     };
 
@@ -297,11 +325,13 @@ export class GlobeEngine {
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ canvas: this.canvasEl, alpha: true, antialias: true });
-    } catch {
+    } catch (err) {
+      console.error('[engine] WebGLRenderer construction failed:', err);
       this._noWebGL = true;
       return;
     }
     renderer.setClearColor(0x000000, 0);
+    renderer.outputEncoding = THREE.sRGBEncoding;
     this.renderer = renderer;
 
     scene.add(new THREE.AmbientLight(0x8fa6c4, 0.55));
@@ -312,42 +342,20 @@ export class GlobeEngine {
     this.group = group;
     scene.add(group);
 
-    // ---- voxel earth (real geography, async land mask) ----
     const R = 1;
-    this.buildEarth(group, R);
 
-    // atmosphere glow
-    const glow = new THREE.Mesh(
-      new THREE.SphereGeometry(1.22, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0x5bb98a, transparent: true, opacity: 0.06, side: THREE.BackSide, blending: THREE.AdditiveBlending })
-    );
-    group.add(glow);
-
-    // ---- pins ----
+    // beat anchors: rotation targets for the scroll narrative (no 3D pins)
     this.BEATS = ([
-      { lat: 32, lon: -65, color: 0x7f9fc9 },
-      { lat: 22, lon: -75, color: 0x4bb3a6 },
-      { lat: -8, lon: 22,  color: 0xc98b5a },
-      { lat: 35, lon: 108, color: 0xc47b8a },
-      { lat: 6,  lon: -155, color: 0xe0b45a },
-    ] as Array<{ lat: number; lon: number; color: number }>).map((b) => ({ ...b, ...this.faceRot(b.lat, b.lon) }));
-
-    this.pins = this.BEATS.map((b): Pin => {
-      const pinGroup = new THREE.Group();
-      const pos = this.latLon(b.lat, b.lon, R + 0.06);
-      const core = new THREE.Mesh(
-        new THREE.SphereGeometry(0.03, 12, 12),
-        new THREE.MeshStandardMaterial({ color: b.color, emissive: b.color, emissiveIntensity: 1.2, roughness: 0.4 })
-      );
-      const halo = new THREE.Mesh(
-        new THREE.SphereGeometry(0.07, 16, 16),
-        new THREE.MeshBasicMaterial({ color: b.color, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending })
-      );
-      pinGroup.add(core); pinGroup.add(halo);
-      pinGroup.position.set(pos.x, pos.y, pos.z);
-      group.add(pinGroup);
-      return { group: pinGroup, core, halo, color: b.color };
-    });
+      { lat: 56.25, lon: -88.79, color: 0x4fae7d }, // Home Base — aims at the clocktower
+      { lat: 58, lon: -7, color: 0x6d9dcd },        // Air — aims at the station in Europe
+      { lat: 22, lon: -75, color: 0x094295 },
+      { lat: -8, lon: 22,  color: 0x914724 },
+      { lat: 35, lon: 108, color: 0x5d177f },
+      { lat: 6,  lon: -155, color: 0x8f0c3a },
+    // aim BELOW each instrument (props sit at anchor -14/-16, see loadModels):
+    // the sub-camera point lands ~12° south of the prop, so it's framed above
+    // the viewpoint and seen from below at a low angle, not from overhead
+    ] as Array<{ lat: number; lon: number; color: number }>).map((b) => ({ ...b, ...this.faceRot(b.lat - 22, b.lon - 16) }));
 
     // starfield
     const starGeo = new THREE.BufferGeometry();
@@ -364,10 +372,7 @@ export class GlobeEngine {
 
     // ---- cartoon voxel props ----
     this.buildSatellite(scene);
-    this.buildBigBen(group, R);
-    this.buildTethersonde(group, R);
-    this.buildClocktower(group, R);
-    this.buildAlgaeDrone(group, R);
+    this.loadModels(group, R);
 
     group.rotation.y = this.BEATS[0].rotY;
     group.rotation.x = this.BEATS[0].rotX;
@@ -396,28 +401,94 @@ export class GlobeEngine {
   }
 
   buildSatellite(scene: THREE.Scene): void {
+    // empty rig — the satellite GLB is loaded into `body` by loadModels
     const sat = new THREE.Group();
     const body = new THREE.Group();
-    this.vox(body, 0.13, 0.11, 0.11, 0x9fb0bd, 0, 0, 0);
-    this.vox(body, 0.05, 0.05, 0.06, 0xe0b45a, 0, 0, 0.085);           // gold sensor face
-    // solar panels
-    for (const dir of [-1, 1]) {
-      this.vox(body, 0.02, 0.09, 0.02, 0x8a97a3, dir * 0.11, 0, 0);    // strut
-      this.vox(body, 0.19, 0.085, 0.012, 0x2a6fb0, dir * 0.26, 0, 0);
-      for (let gx = -1; gx <= 1; gx++) this.vox(body, 0.004, 0.075, 0.016, 0x1b3f66, dir * 0.26 + gx * 0.055, 0, 0);
-    }
-    // dish
-    const dish = this.vox(body, 0.055, 0.055, 0.02, 0xd8dee3, 0, 0.085, 0.02);
-    dish.rotation.x = -0.5;
     sat.add(body);
     scene.add(sat);
     this.sat = sat; this.satBody = body;
-    // downlink data packets (beamed to earth every 5s)
-    this.satPackets = [0, 1, 2].map(() => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.03),
-        new THREE.MeshBasicMaterial({ color: 0x8fd8ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending }));
-      m.visible = false; scene.add(m); return m;
+  }
+
+  // swap the voxel earth / cartoon satellite for GLB models once they load;
+  // on any load failure the voxel versions simply stay
+  loadModels(group: THREE.Group, R: number): void {
+    const loader = new GLTFLoader();
+    // some exported models carry non-finite node transforms, which poison both
+    // bounds measurement and rendering — repair them, then fit normally
+    const finite3 = (p: { x: number; y: number; z: number }): boolean =>
+      isFinite(p.x) && isFinite(p.y) && isFinite(p.z);
+    const fit = (obj: THREE.Object3D, targetR: number): THREE.Group => {
+      obj.traverse((o) => {
+        if (!finite3(o.position)) o.position.set(0, 0, 0);
+        if (!isFinite(o.quaternion.x) || !isFinite(o.quaternion.w)) o.quaternion.identity();
+        if (!finite3(o.scale) || o.scale.x === 0 || o.scale.y === 0 || o.scale.z === 0) o.scale.set(1, 1, 1);
+      });
+      const sphere = new THREE.Box3().setFromObject(obj).getBoundingSphere(new THREE.Sphere());
+      const wrap = new THREE.Group();
+      if (isFinite(sphere.radius) && sphere.radius > 0) {
+        obj.position.sub(sphere.center);
+        wrap.scale.setScalar(targetR / sphere.radius);
+      }
+      wrap.add(obj);
+      return wrap;
+    };
+    loader.load('/models/earth.glb', (gltf) => {
+      const earth = fit(gltf.scene, R);
+      // spin the model so its painted continents line up with the latLon math
+      earth.rotation.y = 0.7;
+      group.add(earth);
     });
+    loader.load('/models/satellite.glb', (gltf) => {
+      this.satBody.clear();
+      this.satBody.add(fit(gltf.scene, 0.33));
+    });
+    loader.load('/models/clocktower.glb', (gltf) => {
+      // the export bundles dozens of untextured near-black meshes that render
+      // as a brown blob around the tower — drop them BEFORE fitting so the
+      // bounds/centering come from the real textured tower only
+      const junk: THREE.Object3D[] = [];
+      gltf.scene.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!(mesh as { isMesh?: boolean }).isMesh) return;
+        const mat = mesh.material;
+        if (Array.isArray(mat) || !(mat as THREE.MeshBasicMaterial).map) junk.push(mesh);
+      });
+      junk.forEach((m) => m.parent?.remove(m));
+      // Ithaca on this earth model's painted geography (click-calibrated);
+      // 0.571 is the model's true surface radius after fit()
+      const g = this.surfaceGroup(group, 42.25, -104.79, 0.571);
+      const tower = fit(gltf.scene, 0.063);
+      // ground the base exactly on the surface point
+      const grounded = new THREE.Box3().setFromObject(tower);
+      tower.position.y = -grounded.min.y;
+      g.add(tower);
+    });
+
+    // one instrument per scroll beat, planted at that beat's anchor point so
+    // it faces the camera while its story card is up (0.571 = surface radius)
+    const plant = (url: string, lat: number, lon: number, size: number, onLoaded?: (wrap: THREE.Group) => void, prep?: (scene: THREE.Group) => void): void => {
+      loader.load(url, (gltf) => {
+        if (prep) prep(gltf.scene);
+        const g = this.surfaceGroup(group, lat, lon, 0.571);
+        g.name = url;
+        const wrap = fit(gltf.scene, size);
+        const box = new THREE.Box3().setFromObject(wrap);
+        wrap.position.y = -box.min.y;
+        g.add(wrap);
+        if (onLoaded) onLoaded(wrap);
+      });
+    };
+    // each prop sits ~20° south-west of its beat anchor: dead-center props are
+    // seen top-down and read as dots — offset puts them at a 3/4 angle instead
+    plant('/models/weather.glb', 44, -23, 0.09, undefined, (scene) => {
+      // drop the model's bundled terrain patch — just the instrument mast
+      const ground = scene.getObjectByName('Object_2');
+      if (ground) ground.parent?.remove(ground);
+    }); // Air — in Europe
+    plant('/models/buoy.glb', 14, -79, 0.075);    // Water — in open ocean
+    plant('/models/soil.glb', -22, 6, 0.085);     // Rock
+    plant('/models/dish.glb', 21, 92, 0.095, (wrap) => { this.dishAim = wrap; }); // Data
+    plant('/models/drone.glb', -8, -171, 0.09);   // Tech
   }
 
   buildBigBen(group: THREE.Group, R: number): void {
@@ -555,36 +626,47 @@ export class GlobeEngine {
 
     // takeover: hero (earth right, smaller) -> centered & large
     const t0 = ease(Math.min(p / 0.18, 1));
-    this.group.scale.setScalar(lerp(0.9, 1.72, t0));
-    this.group.position.x = lerp(this.halfWidth * 0.44, 0, t0);
-    this.group.position.y = lerp(0.04, 0, t0);
 
-    // target rotation
+    // target rotation — SNAPPED to the nearest checkpoint. The camera only
+    // ever aims at a discrete beat (the damped follow animates the swing), so
+    // there is no scroll position that rests "between" two checkpoints.
     let rotY, rotX;
     if (p <= bStart) {
       // brief pan-in on load: settle from ~5% of a turn west of Bermuda over ~1.1s
-      const panT = ease(Math.min(this.time / 1.1, 1));
+      const panT = this._instant ? 1 : ease(Math.min(this.time / 1.1, 1));
       rotY = B[0].rotY + (1 - panT) * (Math.PI * 0.1);
       rotX = B[0].rotX;
     } else if (p >= bEnd) {
       rotY = B[N-1].rotY; rotX = B[N-1].rotX;
     } else {
       const f = (p - bStart) / (bEnd - bStart) * (N - 1);
-      const i = Math.floor(f), fr = ease(f - i);
-      const b0 = B[i], b1 = B[Math.min(i + 1, N - 1)];
-      let d = (b1.rotY - b0.rotY) % (Math.PI * 2);
-      if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
-      rotY = b0.rotY + d * fr;
-      rotX = lerp(b0.rotX, b1.rotX, fr);
+      const idx = Math.max(0, Math.min(N - 1, Math.round(f)));
+      rotY = B[idx].rotY; rotX = B[idx].rotX;
     }
-    // add user drag offset on top of scroll-driven rotation
+
+    // free drag only applies at the hero; once the checkpoint tour starts the
+    // drag offset springs back to zero so every checkpoint lands at its
+    // absolute rotation, no matter how the globe was left spun
+    if (p > bStart) { this.userYaw *= 0.92; this.userPitch *= 0.92; }
     rotY += this.userYaw;
     rotX = Math.max(-1.25, Math.min(1.25, rotX + this.userPitch));
     // damped follow
     let dy = (rotY - this.group.rotation.y) % (Math.PI * 2);
     if (dy > Math.PI) dy -= Math.PI * 2; if (dy < -Math.PI) dy += Math.PI * 2;
-    this.group.rotation.y += dy * 0.09;
-    this.group.rotation.x += (rotX - this.group.rotation.x) * 0.09;
+    // how hard the camera is currently swinging toward a new checkpoint
+    const swing = this._instant ? 0 : Math.min(1, (Math.abs(dy) + Math.abs(rotX - this.group.rotation.x)) * 1.4);
+    const damp = this._instant ? 1 : 0.09;
+    this.group.rotation.y += dy * damp;
+    this.group.rotation.x += (rotX - this.group.rotation.x) * damp;
+
+    // zoom in while settled on a checkpoint, pull back while swinging; damped
+    // so scroll-wheel steps can't make it jump. Desktop shifts the globe
+    // right a touch so the zoomed surface clears the beat card text.
+    const inBeats = ease(Math.max(0, Math.min(1, (p - bStart + 0.08) / 0.08)));
+    const targetScale = lerp(1.25, 1.85, t0) + 0.95 * inBeats * (1 - swing * 0.7);
+    this.group.scale.setScalar(this.group.scale.x + (targetScale - this.group.scale.x) * (this._instant ? 1 : 0.05));
+    this.group.position.x = lerp(this.halfWidth * 0.44, 0, t0) + (this.isMobile ? 0 : 0.35 * inBeats);
+    this.group.position.y = lerp(0.04, 0, t0) + 0.1 * inBeats;
     if (this.stars) this.stars.rotation.y += 0.0004;
 
     // active beat
@@ -595,9 +677,11 @@ export class GlobeEngine {
     }
     const span = (bEnd - bStart) / (N - 1);
 
-    // overlays
+    // overlays — gate() squeezes the linear fade into a short window so text
+    // is either readable or gone, never lingering half-transparent
+    const gate = (raw: number) => ease(Math.max(0, Math.min(1, (raw - 0.35) / 0.3)));
     if (this.heroEl) {
-      const o = Math.max(0, Math.min(1, 1 - p / 0.13));
+      const o = gate(1 - p / 0.13);
       this.heroEl.style.opacity = String(o);
       this.heroEl.style.transform = `translateY(${(1 - o) * -26}px)`;
     }
@@ -608,7 +692,10 @@ export class GlobeEngine {
       this.beatCards.forEach((el, i) => {
         if (!el) return;
         const pc = bStart + i * span;
-        const o = Math.max(0, Math.min(1, 1 - Math.abs(p - pc) / (span * 0.62)));
+        // full-on plateau across the card's snapped zone, short crossfade at
+        // the boundary — matches the snapped camera, no long half-faded zone
+        const d = Math.abs(p - pc) / span;
+        const o = 1 - Math.max(0, Math.min(1, (d - 0.38) / 0.12));
         el.style.opacity = String(o);
         el.style.transform = `translateY(${(1 - o) * 24}px)`;
         el.style.pointerEvents = o > 0.5 ? 'auto' : 'none';
@@ -654,6 +741,12 @@ export class GlobeEngine {
       sat.scale.setScalar(this.group.scale.x);
       sat.lookAt(gx, gy, 0);
       if (this.satBody) this.satBody.rotation.y += 0.01;
+      // ground-station dish tracks the satellite fly-by — yaw only, spinning
+      // on its surface normal so the legs never leave the ground
+      if (this.dishAim && this.dishAim.parent) {
+        const rel = this.dishAim.parent.worldToLocal(sat.position.clone());
+        this.dishAim.rotation.set(0, Math.atan2(rel.x, rel.z), 0);
+      }
       if (this.satPackets) {
         const satPackets = this.satPackets;
         const center = new THREE.Vector3(gx, gy, 0);

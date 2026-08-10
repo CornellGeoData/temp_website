@@ -1,0 +1,11 @@
+Model Information:
+* title:	S2105 Soil EC Sensor With Pole
+* source:	https://sketchfab.com/3d-models/s2105-soil-ec-sensor-with-pole-7ba65177e9764ee7b5576a19da3a3b9c
+* author:	Seeedstudio (https://sketchfab.com/Seeedstudio)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "S2105 Soil EC Sensor With Pole" (https://sketchfab.com/3d-models/s2105-soil-ec-sensor-with-pole-7ba65177e9764ee7b5576a19da3a3b9c) by Seeedstudio (https://sketchfab.com/Seeedstudio) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

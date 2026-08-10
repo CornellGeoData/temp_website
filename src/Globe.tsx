@@ -12,14 +12,21 @@ interface Beat {
 
 const BEAT_INFO: Beat[] = [
   {
-    color: '#7f9fc9',
+    color: '#4fae7d',
+    label: 'Home Base',
+    title: 'Rooted in the Finger Lakes',
+    body: 'GeoData lives on Cornell\'s campus in Ithaca, New York, above Cayuga Lake. Everything we design, build and deploy starts here — with a mission to protect and serve the Finger Lakes region we call home.',
+    stat: 'Ithaca, NY · Cornell University',
+  },
+  {
+    color: '#6d9dcd',
     label: 'Air Team',
     title: 'Profiling the lower atmosphere',
     body: "A student-built tethersonde climbs the lowest 500 feet of air, measuring how temperature, humidity and wind shift with height — resolving lake-effect snow and the boundary layer over the Finger Lakes.",
     stat: '500 ft vertical profiles',
   },
   {
-    color: '#4bb3a6',
+    color: '#094295',
     label: 'Water Team',
     title: 'Watching the water from orbit',
     body: (
@@ -32,21 +39,21 @@ const BEAT_INFO: Beat[] = [
     stat: 'Sentinel-2 · 10 m resolution',
   },
   {
-    color: '#c98b5a',
+    color: '#914724',
     label: 'Rock Team',
     title: 'Listening to the ground',
     body: "A low-cost network of 17 soil-moisture and 5 air-quality sensors rings Cayuga Lake. Five nodes at the Game Farm site ground-truth NASA's NISAR satellite, linking what's in the dirt to what's seen from space.",
     stat: '17 soil-moisture nodes · NISAR',
   },
   {
-    color: '#c47b8a',
+    color: '#5d177f',
     label: 'Data Team',
     title: 'Turning readings into open data',
     body: 'Every sensor stream is cleaned, stored and published — filling gaps in the region\'s climate record and handing communities, researchers and the Emergent Climate Risk Lab data they can actually use.',
     stat: 'Public, community-ready datasets',
   },
   {
-    color: '#e0b45a',
+    color: '#8f0c3a',
     label: 'Tech Team',
     title: 'The hardware behind it all',
     body: 'From Arduino and Raspberry Pi to radio links and a continuous temperature probe for Cayuga Lake, the tech team builds the guts that keep every other subteam\'s instruments alive in the field.',
@@ -78,7 +85,7 @@ export default function Globe() {
   }, []);
 
   return (
-    <section ref={sceneRef} style={{ position: 'relative', height: '640vh' }}>
+    <section ref={sceneRef} style={{ position: 'relative', height: '740vh' }}>
       <div className="globe-sticky" style={{ position: 'sticky', top: 0, width: '100%', overflow: 'hidden' }}>
         <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />
 
@@ -86,11 +93,11 @@ export default function Globe() {
 
         {/* HERO */}
         <div ref={(el: HTMLDivElement | null) => { heroRef.current = el; }} className="hero-panel" style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: 'min(560px,50%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 0 0 clamp(24px,5vw,72px)', zIndex: 10, willChange: 'opacity,transform' }}>
-          <div style={{ fontFamily: "'Clingy',sans-serif", fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#5bb98a', marginBottom: 14 }}>Cornell University · Project Team</div>
-          <h1 style={{ fontFamily: "'Clingy',sans-serif", fontWeight: 700, fontSize: 'clamp(52px,6.6vw,96px)', lineHeight: 0.95, letterSpacing: '-0.03em', margin: 0 }}>Geo<span style={{ color: '#5bb98a' }}>Data</span></h1>
+          <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#086727', marginBottom: 14 }}>Cornell University · Project Team</div>
+          <h1 style={{ fontFamily: "'Sunrise Brown',sans-serif", fontWeight: 700, fontSize: 'clamp(52px,6.6vw,96px)', lineHeight: 0.95, letterSpacing: '-0.03em', margin: 0 }}>Geo<span style={{ color: '#086727' }}>Data</span></h1>
           <p style={{ fontSize: 16.5, lineHeight: 1.6, color: '#a9bcc6', maxWidth: 440, margin: '22px 0 0' }}>Cornell students building low-cost instruments that measure a changing planet — from the soil under Cayuga Lake to the edge of the atmosphere.</p>
           <div style={{ marginTop: 34 }}>
-            <a href="#join" style={{ display: 'inline-block', padding: '14px 28px', borderRadius: 999, background: '#5bb98a', color: '#08130c', fontWeight: 600, fontSize: 17.5, fontFamily: "'Resiple',sans-serif" }}>Join the team</a>
+            <a href="#join" style={{ display: 'inline-block', padding: '14px 28px', borderRadius: 999, background: '#086727', color: '#eaf2ee', fontWeight: 700, fontSize: 17.5, fontFamily: "'Resiple',sans-serif" }}>Join the team</a>
           </div>
         </div>
 
@@ -100,13 +107,13 @@ export default function Globe() {
             key={beat.label}
             ref={(el: HTMLElement | null) => { beatRefs.current[i] = el; }}
             className="beat-card"
-            style={{ position: 'absolute', bottom: '12vh', left: 'clamp(24px,5vw,72px)', width: 'min(480px,86%)', opacity: 0, zIndex: 10, willChange: 'opacity,transform' }}
+            style={{ position: 'absolute', bottom: '12vh', left: 'clamp(24px,5vw,72px)', width: 'min(480px,86%)', opacity: 0, zIndex: 10, willChange: 'opacity,transform', background: 'rgba(10,14,18,0.78)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', padding: 26, borderRadius: 10 }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: "'Resiple',sans-serif", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: beat.color, marginBottom: 14 }}>
               <span style={{ width: 9, height: 9, borderRadius: 2, background: beat.color, display: 'inline-block' }} />
               {beat.label}
             </div>
-            <h2 style={{ fontFamily: "'Clingy',sans-serif", fontWeight: 600, fontSize: 'clamp(30px,3.6vw,46px)', lineHeight: 1.02, letterSpacing: '-0.02em', margin: 0 }}>{beat.title}</h2>
+            <h2 style={{ fontFamily: "'Manti Sans',sans-serif", fontWeight: 600, fontSize: 'clamp(30px,3.6vw,46px)', lineHeight: 1.02, letterSpacing: '-0.02em', margin: 0 }}>{beat.title}</h2>
             <p style={{ fontSize: 16, lineHeight: 1.6, color: '#b6c6ce', margin: '16px 0 0' }}>{beat.body}</p>
             <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 13, color: beat.color, marginTop: 18 }}>{beat.stat}</div>
           </div>
