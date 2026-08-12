@@ -90,11 +90,11 @@ export default function App() {
   const closeMenu = () => setMenuOpen(false);
   const [route, setRoute] = useState(window.location.hash);
   const onBlogPage = route === '#/blog';
-  // the globe scroll sequence is 740vh tall; keep the header glass-clear until
-  // the page content starts so the dark bar never shades the globe
+  // keep the header glass-clear over the 100vh globe hero so the dark bar
+  // never shades the globe
   const [pastGlobe, setPastGlobe] = useState(false);
   useEffect(() => {
-    const onWinScroll = () => setPastGlobe(window.scrollY > window.innerHeight * 6.3);
+    const onWinScroll = () => setPastGlobe(window.scrollY > window.innerHeight * 0.7);
     onWinScroll();
     window.addEventListener('scroll', onWinScroll, { passive: true });
     return () => window.removeEventListener('scroll', onWinScroll);

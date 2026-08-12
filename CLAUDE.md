@@ -4,8 +4,8 @@ Guidance for Claude Code (or any agent) working in this repository.
 
 ## What this is
 
-A scroll-driven landing page for Cornell's GeoData project team, built with
-**React 19 + TypeScript + Vite**, with a **three.js 0.150.1** voxel-globe scene as the
+A landing page for Cornell's GeoData project team, built with
+**React 19 + TypeScript + Vite**, with a **three.js 0.150.1** globe scene as the
 centerpiece. See `README.md` for the feature/architecture overview.
 
 ## Commands
@@ -26,14 +26,13 @@ separately whenever touching `.ts`/`.tsx` files.
 ## Architecture
 
 - `src/globeEngine.ts` — a framework-agnostic `GlobeEngine` class. Owns the three.js
-  scene, camera, renderer, the voxel-globe builder, all cartoon props (satellite, Big Ben,
-  tethersonde, Cornell clocktower, algae drone), the scroll listener, the drag handler, and
-  the `requestAnimationFrame` animate loop. **No React import, no DOM framework
-  assumptions** — it's handed raw DOM nodes via `mount({ sceneEl, canvasEl, heroEl, hintEl,
-beatEls, dotEls })` and cleaned up via `unmount()`.
-- `src/Globe.tsx` — thin React wrapper. Holds the refs, renders the hero copy / beat cards
-  / progress dots / scroll hint as JSX, and in a `useEffect` constructs a `GlobeEngine` and
-  calls `mount()`/`unmount()`. Contains no three.js code itself.
+  scene, camera, renderer, the GLB models (earth, orbiting satellite, Cornell clocktower),
+  the drag handler, the clocktower click raycast, and the `requestAnimationFrame` animate
+  loop. **No React import, no DOM framework assumptions** — it's handed a raw canvas via
+  `mount({ canvasEl, onTowerClick })` and cleaned up via `unmount()`.
+- `src/Globe.tsx` — thin React wrapper. Renders the hero copy and the clocktower popup as
+  JSX, and in a `useEffect` constructs a `GlobeEngine` and calls `mount()`/`unmount()`.
+  Contains no three.js code itself.
 - `src/App.tsx` — the rest of the page (header, `<Globe/>`, projects/impact/partners/join
   sections, footer). Plain inline styles, no CSS framework.
 - `src/main.tsx` — React root.
@@ -58,16 +57,12 @@ is what makes the engine portable/testable independent of React.
   `.material.emissive`, `.material.emissiveIntensity` etc. type-check without casts. Follow
   the same pattern for any new mesh-returning helper.
 - Inside `animate()`, when a field guarded by `if (this.x)` is then read inside a nested
-  closure (a `.forEach` callback), alias it to a local `const` right after the guard (see
-  `const sat = this.sat;`, `const drone = this.drone;`, etc.) rather than relying on
-  `this.x` staying narrowed across the closure — TypeScript does not preserve narrowing of
-  `this`-properties through nested function boundaries.
+  closure (a `.forEach` callback), alias it to a local `const` right after the guard rather
+  than relying on `this.x` staying narrowed across the closure — TypeScript does not
+  preserve narrowing of `this`-properties through nested function boundaries.
 - No `any` / `@ts-ignore` are used anywhere in this file; keep it that way. If a three.js
   type genuinely can't be satisfied, prefer a narrowly-scoped assertion with a one-line
-  comment explaining why (see the `ctx!.drawImage(...)` / `ctx!.getImageData(...)` calls in
-  `buildEarth` for the existing precedent — a null 2d context throws synchronously there and
-  is caught by the surrounding `try/catch`, which is the same behavior the untyped original
-  relied on).
+  comment explaining why.
 
 ## Conventions
 
@@ -76,9 +71,6 @@ is what makes the engine portable/testable independent of React.
   asked.
 - Don't add code comments explaining _what_ code does; only add them for non-obvious _why_
   (see the sparse comments already in `globeEngine.ts` for the expected density).
-- `public/earth-water.png` is the equirectangular land/water mask the voxel globe samples;
-  it's served same-origin specifically so `getImageData()` on the offscreen sampling canvas
-  never hits a cross-origin canvas-taint error. Don't switch it back to a CDN URL.
 - Needs WebGL. Don't remove the `try/catch` around `WebGLRenderer` construction in
   `initThree()` — it's what lets the page degrade (globe simply doesn't render/animate)
   instead of throwing on WebGL-less environments.
