@@ -1,29 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { GlobeEngine } from './globeEngine';
 
-// temporary font audition for the GeoData title — each key cycles through one
-// downloaded batch in public/fonts/test/, wrapping back to the default (Awake).
-// Delete this + the keydown effect once a font is picked.
-const TEST_FONTS: Record<string, string[]> = {
-  y: [ // ~/Downloads/newfonts
-    'akuina.otf', 'aniko.otf', 'awake.otf', 'buffalord.ttf', 'capricious.otf',
-    'catamaran.ttf', 'comedoit.ttf', 'comixo.otf', 'corpoa.otf', 'death-craft.ttf',
-    'distro.ttf', 'gelline.otf', 'ginerin.otf', 'gokschil.otf', 'ignazio.otf',
-    'jazzyrabbit.ttf', 'jazzyrabbit-remake.ttf', 'kabrio.ttf', 'kirgina.ttf',
-    'merich.otf', 'mulane.otf', 'oddval.otf', 'ov-soge.otf', 'plumpkins.otf',
-    'pottred.ttf', 'pretosh.otf', 'saira-condensed.ttf', 'saira-extracondensed.ttf',
-  ],
-  u: [ // ~/Downloads/newer
-    '36-days-ago.ttf', 'evergreen.otf', 'gefika.otf', 'glowdust.otf', 'grolear.ttf',
-    'intan.otf', 'keretro.ttf', 'maiky-retro.otf', 'mokenzo.otf', 'quietly.otf',
-    'racoti.otf', 'resonik.otf', 'tyllon.otf', 'xenophile.otf',
-  ],
-};
-
 export default function Globe() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [towerOpen, setTowerOpen] = useState(false);
-  const [testFont, setTestFont] = useState<{ fam: string; file: string } | null>(null);
 
   useEffect(() => {
     const engine = new GlobeEngine();
@@ -34,25 +14,6 @@ export default function Globe() {
     return () => engine.unmount();
   }, []);
 
-  useEffect(() => {
-    const idx: Record<string, number> = {};
-    const onKey = (e: KeyboardEvent): void => {
-      const batch = TEST_FONTS[e.key];
-      if (!batch) return;
-      idx[e.key] = ((idx[e.key] ?? -1) + 1) % (batch.length + 1);
-      const i = idx[e.key];
-      if (i === batch.length) { setTestFont(null); return; } // back to the default
-      const file = batch[i];
-      const fam = `TitleTest ${file.replace(/\.[^.]+$/, '')}`;
-      // wide weight range so the h1's fontWeight:700 doesn't trigger faux-bold
-      new FontFace(fam, `url("/fonts/test/${file}")`, { weight: '100 900' }).load()
-        .then((f) => { document.fonts.add(f); setTestFont({ fam, file }); })
-        .catch((err) => console.error('[font test] failed to load', file, err));
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
   return (
     <section className="globe-sticky" style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />
@@ -60,18 +21,12 @@ export default function Globe() {
       {/* HERO */}
       <div className="hero-panel" style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: 'min(560px,50%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 0 0 clamp(24px,5vw,72px)', zIndex: 10, pointerEvents: 'none' }}>
         <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#086727', marginBottom: 14 }}>Cornell University · Project Team</div>
-        <h1 style={{ fontFamily: testFont ? `'${testFont.fam}',sans-serif` : "'Intan',sans-serif", fontWeight: 700, fontSize: 'clamp(60px,8vw,120px)', lineHeight: 0.95, letterSpacing: '-0.03em', margin: '0 0 -0.19em -0.045em' }}>Geo<span style={{ color: '#086727' }}>Data</span></h1>
+        <h1 style={{ fontFamily: "'Intan',sans-serif", fontWeight: 700, fontSize: 'clamp(60px,8vw,120px)', lineHeight: 0.95, letterSpacing: '-0.03em', margin: '0 0 -0.19em -0.045em' }}>Geo<span style={{ color: '#086727' }}>Data</span></h1>
         <p style={{ fontSize: 16.5, lineHeight: 1.6, color: '#a9bcc6', maxWidth: 440, margin: '22px 0 0' }}>Cornell students building low-cost instruments that measure a changing planet — from the soil under Cayuga Lake to the edge of the atmosphere.</p>
         <div style={{ marginTop: 34 }}>
           <a href="#join" style={{ display: 'inline-block', padding: '14px 28px', borderRadius: 999, background: '#086727', color: '#eaf2ee', fontWeight: 700, fontSize: 17.5, fontFamily: "'Resiple',sans-serif", pointerEvents: 'auto' }}>Join the team</a>
         </div>
       </div>
-
-      {testFont && (
-        <div style={{ position: 'absolute', bottom: 14, left: 16, zIndex: 20, fontFamily: "'Natural Mono',monospace", fontSize: 12, color: '#7c909b', background: 'rgba(10,14,18,0.7)', padding: '4px 10px', borderRadius: 6 }}>
-          font: {testFont.file} — y: batch 1 · u: batch 2
-        </div>
-      )}
 
       {/* CLOCKTOWER POPUP */}
       {towerOpen && (
