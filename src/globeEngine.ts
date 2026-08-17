@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 // Globe.tsx; has no React dependency itself.
 export interface MountArgs {
   canvasEl: HTMLCanvasElement;
-  onTowerClick?: () => void;
+  onPropClick?: (key: string) => void;
 }
 
 type Vec3Coords = { x: number; y: number; z: number };
@@ -13,7 +13,7 @@ type FaceRotation = { rotY: number; rotX: number };
 
 export class GlobeEngine {
   canvasEl!: HTMLCanvasElement;
-  onTowerClick?: () => void;
+  onPropClick?: (key: string) => void;
 
   _destroyed = false;
   _noWebGL = false;
@@ -42,12 +42,14 @@ export class GlobeEngine {
   stars!: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   sat!: THREE.Group;
   satBody!: THREE.Group;
-  towerHit?: THREE.Mesh; // set once the clocktower model loads
+  // invisible click spheres, one per planted prop; filled as models load
+  hitTargets: { key: string; mesh: THREE.Mesh }[] = [];
   globeHit!: THREE.Mesh; // invisible sphere over the earth, for wheel-zoom hit tests
 
-  mount({ canvasEl, onTowerClick }: MountArgs): void {
+  mount({ canvasEl, onPropClick }: MountArgs): void {
     this.canvasEl = canvasEl;
-    this.onTowerClick = onTowerClick;
+    this.onPropClick = onPropClick;
+    this.hitTargets = [];
 
     this._destroyed = false;
     this.time = 0;
@@ -68,8 +70,10 @@ export class GlobeEngine {
       camera.updateProjectionMatrix();
       const halfH = Math.tan((camera.fov * Math.PI / 180) / 2) * camera.position.z;
       this.halfWidth = halfH * camera.aspect;
-      // earth sits right of center so the hero copy on the left stays clear
-      this.group.position.set(this.halfWidth * 0.44, 0.04, 0);
+      // desktop: earth sits right of center so the hero copy on the left stays
+      // clear; mobile: centered in the lower half, below the stacked hero copy
+      if (this.isMobile) this.group.position.set(0, -0.85, 0);
+      else this.group.position.set(this.halfWidth * 0.44, 0.04, 0);
     };
     window.addEventListener('resize', this.onResize);
 
@@ -100,17 +104,26 @@ export class GlobeEngine {
     };
     const ray = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
-    const hits = (e: { clientX: number; clientY: number }, target: THREE.Mesh | undefined): boolean => {
-      if (!target) return false;
+    const castFrom = (e: { clientX: number; clientY: number }): THREE.Raycaster => {
       const r = el.getBoundingClientRect();
       ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, this.camera);
-      return ray.intersectObject(target, false).length > 0;
+      return ray;
     };
-    const overTower = (e: { clientX: number; clientY: number }): boolean => hits(e, this.towerHit);
+    const propAt = (e: { clientX: number; clientY: number }): string | null => {
+      if (!this.hitTargets.length) return null;
+      const hit = castFrom(e).intersectObjects(this.hitTargets.map((t) => t.mesh), false)[0];
+      if (!hit) return null;
+      return this.hitTargets.find((t) => t.mesh === hit.object)?.key ?? null;
+    };
+    const overGlobe = (e: { clientX: number; clientY: number }): boolean =>
+      castFrom(e).intersectObject(this.globeHit, false).length > 0;
     const down = (e: PointerEvent): void => {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 2) { dragging = false; pinchDist = pinchSpan(); return; }
+      // only touches/clicks that start on the globe grab it — elsewhere the
+      // canvas is inert background and scrolling stays untouched
+      if (!overGlobe(e)) return;
       dragging = true; moved = 0; el.style.cursor = 'grabbing'; lx = e.clientX; ly = e.clientY;
     };
     const move = (e: PointerEvent): void => {
@@ -123,7 +136,7 @@ export class GlobeEngine {
         return;
       }
       if (!dragging) {
-        if (e.target === el) el.style.cursor = overTower(e) ? 'pointer' : 'grab';
+        if (e.target === el) el.style.cursor = propAt(e) ? 'pointer' : overGlobe(e) ? 'grab' : 'default';
         return;
       }
       moved += Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly);
@@ -133,7 +146,10 @@ export class GlobeEngine {
     };
     const up = (e: PointerEvent): void => {
       pointers.delete(e.pointerId);
-      if (dragging && moved < 6 && e.target === el && this.onTowerClick && overTower(e)) this.onTowerClick();
+      if (dragging && moved < 6 && e.target === el && this.onPropClick) {
+        const key = propAt(e);
+        if (key) this.onPropClick(key);
+      }
       dragging = false;
       el.style.cursor = 'grab';
     };
@@ -142,7 +158,10 @@ export class GlobeEngine {
     // hero still scrolls the page normally (trackpad pinch arrives as
     // ctrl+wheel, so it works too)
     const wheel = (e: WheelEvent): void => {
-      if (!hits(e, this.globeHit)) return;
+      // on mobile the globe fills most of the hero — let the wheel scroll the
+      // page there; pinch (two-pointer) zoom still works
+      if (this.isMobile) return;
+      if (castFrom(e).intersectObject(this.globeHit, false).length === 0) return;
       e.preventDefault();
       this.zoom = Math.max(1, Math.min(3, this.zoom * Math.exp(-e.deltaY * 0.0015)));
     };
@@ -306,7 +325,7 @@ export class GlobeEngine {
       hit.visible = false;
       hit.position.y = 0.06;
       g.add(hit);
-      this.towerHit = hit;
+      this.hitTargets.push({ key: 'home', mesh: hit });
     });
   }
 

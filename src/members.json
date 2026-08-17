@@ -1,16 +1,259 @@
 [
-  { "name": "Member Name", "subteam": "Team Leads", "badge": "Air", "photo": "", "bio": "A sentence or two about this lead — their major, year, and what they run on the team." },
-  { "name": "Member Name", "subteam": "Team Leads", "badge": "Water", "photo": "", "bio": "A sentence or two about this lead — their major, year, and what they run on the team." },
-  { "name": "Member Name", "subteam": "Air", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Air", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Water", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Water", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Rock", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Rock", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Data", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Data", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Tech", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Tech", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Business", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." },
-  { "name": "Member Name", "subteam": "Business", "photo": "", "bio": "A sentence or two about this member — their major, year, role on the subteam, and what they are building." }
+  {
+    "name": "Orion Hoch",
+    "subteam": "Leadership",
+    "role": "Co-Team Lead",
+    "photo": "/members/orion.jpg",
+    "email": "ogh6@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Lenny Metlitsky",
+    "subteam": "Leadership",
+    "role": "Co-Team Lead",
+    "photo": "/members/lenny.jpg",
+    "email": "lm982@cornell.edu",
+    "major": "Environmental Engineering"
+  },
+  {
+    "name": "David Hysell",
+    "subteam": "Leadership",
+    "role": "Faculty Advisor",
+    "photo": "/members/david.jpg",
+    "email": "dlh37@cornell.edu",
+    "major": "Professor, Earth & Atmospheric Sciences"
+  },
+  {
+    "name": "Dorin Kim",
+    "subteam": "Air",
+    "lead": true,
+    "photo": "/members/dorin.jpg",
+    "email": "dhk84@cornell.edu",
+    "major": "Atmospheric Science"
+  },
+  {
+    "name": "Evelyn Keefe",
+    "subteam": "Air",
+    "lead": true,
+    "photo": "/members/evelyn.jpg",
+    "email": "enk36@cornell.edu",
+    "major": "Atmospheric Science"
+  },
+  {
+    "name": "Alexander Cherny",
+    "subteam": "Air",
+    "photo": "/members/alexander.jpg",
+    "email": "amc635@cornell.edu",
+    "major": "Atmospheric Science"
+  },
+  {
+    "name": "Jihan Bhuiyan",
+    "subteam": "Air",
+    "photo": "/members/jihan.jpg",
+    "email": "jsb469@cornell.edu",
+    "major": "Atmospheric Science"
+  },
+  {
+    "name": "Kieran Mohindra-Green",
+    "subteam": "Air",
+    "photo": "/members/kieran.jpeg",
+    "email": "kam542@cornell.edu",
+    "major": "Atmospheric Science"
+  },
+  {
+    "name": "Simran LaBore",
+    "subteam": "Air",
+    "photo": "/members/simran.jpg",
+    "email": "sl2852@cornell.edu",
+    "major": "Atmospheric Science"
+  },
+  {
+    "name": "Lucy Alcoba",
+    "subteam": "Air",
+    "photo": "/members/lucy.jpg",
+    "email": "lca52@cornell.edu",
+    "major": "Atmospheric Science"
+  },
+  {
+    "name": "Duke Gandin",
+    "subteam": "Water",
+    "lead": true,
+    "photo": "/members/duke.png",
+    "email": "dag374@cornell.edu",
+    "major": "Electrical Engineering"
+  },
+  {
+    "name": "Hayden Fu",
+    "subteam": "Water",
+    "photo": "/members/hayden.png",
+    "email": "hmf63@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Sean Welker",
+    "subteam": "Water",
+    "photo": "/members/sean.jpeg",
+    "email": "sw2458@cornell.edu",
+    "major": "Environmental Engineering"
+  },
+  {
+    "name": "Xingjian (Henry) Mu",
+    "subteam": "Water",
+    "photo": "/members/henry.jpeg",
+    "email": "xm245@cornell.edu",
+    "major": "Pre-Med"
+  },
+  {
+    "name": "Rich Hu",
+    "subteam": "Water",
+    "photo": "/members/rich.jpg",
+    "email": "lh656@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Aya Saute",
+    "subteam": "Rock",
+    "lead": true,
+    "photo": "/members/aya.jpg",
+    "email": "acs373@cornell.edu",
+    "major": "Environmental Engineering"
+  },
+  {
+    "name": "Shubha Gautam",
+    "subteam": "Rock",
+    "lead": true,
+    "photo": "/members/shubha.jpg",
+    "email": "sg2563@cornell.edu",
+    "major": "Math and Physics"
+  },
+  {
+    "name": "Abhinav Jacobs",
+    "subteam": "Rock",
+    "photo": "/members/abhinav.jpg",
+    "email": "aej62@cornell.edu",
+    "major": "Environmental Engineering"
+  },
+  {
+    "name": "Janice Yohannan",
+    "subteam": "Rock",
+    "photo": "/members/janice.jpg",
+    "email": "jy975@cornell.edu",
+    "major": "Earth and Atmospheric Sciences"
+  },
+  {
+    "name": "Nick Spoto",
+    "subteam": "Rock",
+    "photo": "/members/nick.jpg",
+    "email": "njs232@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Sameer Nathawat",
+    "subteam": "Rock",
+    "photo": "/members/sameer.png",
+    "email": "sn729@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Sophia Doyle",
+    "subteam": "Rock",
+    "photo": "/members/sophia.jpeg",
+    "email": "skd86@cornell.edu",
+    "major": "Biological Engineering"
+  },
+  {
+    "name": "Rithya Sriram",
+    "subteam": "Data",
+    "lead": true,
+    "photo": "/members/rithya.jpg",
+    "email": "ra596@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Ashley Zhao",
+    "subteam": "Data",
+    "photo": "/members/ashley.jpg",
+    "email": "ajz45@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Christopher Au",
+    "subteam": "Data",
+    "photo": "/members/christopher.jpeg",
+    "email": "cta48@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Adam Zachry",
+    "subteam": "Data",
+    "photo": "/members/adam.jpeg",
+    "email": "mb2926@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Avinash Aravind",
+    "subteam": "Tech",
+    "lead": true,
+    "photo": "/members/avinash.png",
+    "email": "aa2476@cornell.edu",
+    "major": "Atmospheric Science"
+  },
+  {
+    "name": "Danna Acosta",
+    "subteam": "Tech",
+    "photo": "/members/danna.jpeg",
+    "email": "dsa72@cornell.edu",
+    "major": "Mechanical Engineering"
+  },
+  {
+    "name": "Jimmy Chen",
+    "subteam": "Tech",
+    "photo": "/members/jimmy.jpg",
+    "email": "jzc32@cornell.edu",
+    "major": "Mechanical Engineering"
+  },
+  {
+    "name": "Lindsey Paradise",
+    "subteam": "Tech",
+    "photo": "/members/lindsey.jpg",
+    "email": "lmp276@cornell.edu",
+    "major": "Mechanical Engineering"
+  },
+  {
+    "name": "Suchit Basineni",
+    "subteam": "Tech",
+    "photo": "/members/suchit.png",
+    "email": "ssb278@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Annika Malhotra",
+    "subteam": "Business",
+    "lead": true,
+    "photo": "/members/annika.jpg",
+    "email": "am3359@cornell.edu",
+    "major": "Computer Science"
+  },
+  {
+    "name": "Averi Lane",
+    "subteam": "Business",
+    "lead": true,
+    "photo": "/members/averi.jpg",
+    "email": "aml444@cornell.edu",
+    "major": "Environmental Engineering"
+  },
+  {
+    "name": "Joshua Kennedy",
+    "subteam": "Business",
+    "photo": "/members/joshua.jpg",
+    "email": "jak563@cornell.edu",
+    "major": "Environment and Sustainability"
+  },
+  {
+    "name": "Reece Shiraishi",
+    "subteam": "Business",
+    "photo": "/members/reece.jpg",
+    "email": "rcs374@cornell.edu",
+    "major": "Electrical Engineering"
+  }
 ]
