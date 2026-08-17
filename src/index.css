@@ -76,36 +76,49 @@ a:hover {
 
 @media (max-width: 720px) {
   .site-header {
-    padding: 14px 16px !important;
+    padding: 10px 12px !important;
   }
 
   .site-nav {
-    gap: 12px !important;
+    gap: 10px !important;
     font-size: 14px !important;
   }
 
   .site-nav-links {
-    gap: 14px !important;
+    gap: 12px !important;
   }
 
   .logo-link {
     gap: 8px !important;
   }
 
+  .logo-link img {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  /* measured: the wordmark (95px) pushes total header content to 414px,
+     wider than any phone — the hero h1 right below repeats the name anyway */
   .logo-text {
-    font-size: 20px !important;
+    display: none !important;
+  }
+
+  /* 15.5vw keeps the h1 within the 48px side padding at every width;
+     at the 60px inline clamp minimum it overflows sub-330px screens */
+  .hero-title {
+    font-size: clamp(44px, 15.5vw, 88px) !important;
   }
 
   .nav-join-btn {
-    padding: 8px 14px !important;
-    font-size: 13.5px !important;
+    padding: 7px 12px !important;
+    font-size: 13px !important;
   }
 
-  /* stack the hero copy at the top; the engine parks the globe in the
-     bottom half so the two never overlap */
+  /* no globe on mobile — the hero is a plain text block, so give it its own
+     breathing room top and bottom */
   .hero-panel {
     width: 100% !important;
-    padding: 108px 24px 0 !important;
+    padding: 96px 24px 56px !important;
     justify-content: flex-start !important;
   }
 
