@@ -30,15 +30,15 @@ const PROJECTS: Project[] = [
     tagColor: '#914724',
     title: 'Cayuga Lake Sensor Network',
     body: 'Air, water and soil sensors at 13 sites around the lake. The result is a growing dataset for a region that has almost no dense environmental monitoring.',
-    photo: '/projects/sensors.png',
-    photo2: '/projects/sensors-lake.png',
+    photo: '/projects/sensors.jpg',
+    photo2: '/projects/sensors-lake.jpg',
   },
   {
     tag: 'Air',
     tagColor: '#6d9dcd',
     title: 'Atmospheric Tethersonde',
     body: 'An affordable, portable profiler for the lowest 500 feet of the atmosphere. We built it to get high-resolution observations of boundary-layer and lake-effect weather.',
-    photo: '/projects/tethersonde.jpeg',
+    photo: '/projects/tethersonde.jpg',
     photoAspect: '4/5',
     photoPosition: '57% 50%',
   },
@@ -47,7 +47,7 @@ const PROJECTS: Project[] = [
     tagColor: '#914724',
     title: 'NISAR Ground-Truthing',
     body: "Five soil-moisture nodes at the Game Farm site check NASA's NISAR satellite against what's actually in the dirt.",
-    photo: '/projects/nisar.png',
+    photo: '/projects/nisar.jpg',
     photoAspect: '4/5',
     photoPosition: '50% 40%',
   },
@@ -56,7 +56,7 @@ const PROJECTS: Project[] = [
     tagColor: '#8f0c3a',
     title: 'LiDAR Hexapod',
     body: 'A six-legged robot that carries a LiDAR scanner into terrain wheels can\'t handle. We\'re building it with CUPI to map the ground in 3D.',
-    photo: '/projects/hexapod.png',
+    photo: '/projects/hexapod.jpg',
   },
   {
     tag: 'Tech · Water',
@@ -371,11 +371,11 @@ export default function App() {
               <article key={proj.title} style={{ gridColumn: proj.photo2 ? '1 / -1' : undefined }}>
                 {proj.photo && proj.photo2 ? (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(280px,100%),1fr))', gap: 26 }}>
-                    <img src={proj.photo} alt={proj.title} style={{ display: 'block', width: '100%', aspectRatio: '16/10', objectFit: 'cover', objectPosition: proj.photoPosition }} />
-                    <img src={proj.photo2} alt="" style={{ display: 'block', width: '100%', aspectRatio: '16/10', objectFit: 'cover' }} />
+                    <img loading="lazy" decoding="async" src={proj.photo} alt={proj.title} style={{ display: 'block', width: '100%', aspectRatio: '16/10', objectFit: 'cover', objectPosition: proj.photoPosition }} />
+                    <img loading="lazy" decoding="async" src={proj.photo2} alt="" style={{ display: 'block', width: '100%', aspectRatio: '16/10', objectFit: 'cover' }} />
                   </div>
                 ) : proj.photo ? (
-                  <img src={proj.photo} alt={proj.title} style={{ display: 'block', width: '100%', aspectRatio: proj.photoAspect ?? '16/10', objectFit: 'cover', objectPosition: proj.photoPosition }} />
+                  <img loading="lazy" decoding="async" src={proj.photo} alt={proj.title} style={{ display: 'block', width: '100%', aspectRatio: proj.photoAspect ?? '16/10', objectFit: 'cover', objectPosition: proj.photoPosition }} />
                 ) : (
                   <div style={{ aspectRatio: '16/10', background: '#12181e' }} />
                 )}
@@ -427,12 +427,12 @@ export default function App() {
                           style={{ position: 'relative', cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none' }}
                         >
                           {m.photo ? (
-                            <img src={m.photo} alt="" draggable={false} style={{ display: 'block', width: '100%', aspectRatio: '1/1', objectFit: 'cover' }} />
+                            <img loading="lazy" decoding="async" src={m.photo} alt="" draggable={false} style={{ display: 'block', width: '100%', aspectRatio: '1/1', objectFit: 'cover' }} />
                           ) : (
                             <div style={{ aspectRatio: '1/1', background: '#12181e' }} />
                           )}
                           <div style={{ position: 'absolute', inset: 0, background: 'rgba(12,18,24,0.82)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', border: `2px solid ${color}`, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
-                          <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color }}>{m.role ?? (m.lead ? 'Team Lead' : 'Contact')}</div>
+                          <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color }}>{m.role ?? (m.lead ? 'Subteam Lead' : 'Contact')}</div>
                           <div style={{ fontSize: 14.5, color: '#b6c6ce' }}>{m.major || 'Major TBD'}</div>
                           {m.email ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -451,7 +451,7 @@ export default function App() {
                           )}
                           </div>
                           {SUBTEAM_BADGES[m.badge ?? subteam] && (
-                            <img src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
+                            <img loading="lazy" decoding="async" src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
                           )}
                         </div>
                       ) : (
@@ -462,18 +462,18 @@ export default function App() {
                           style={{ position: 'relative', display: 'block', width: '100%', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none' }}
                         >
                           {m.photo ? (
-                            <img src={m.photo} alt={m.name} draggable={false} style={{ display: 'block', width: '100%', aspectRatio: '1/1', objectFit: 'cover', userSelect: 'none', WebkitUserSelect: 'none' }} />
+                            <img loading="lazy" decoding="async" src={m.photo} alt={m.name} draggable={false} style={{ display: 'block', width: '100%', aspectRatio: '1/1', objectFit: 'cover', userSelect: 'none', WebkitUserSelect: 'none' }} />
                           ) : (
                             <div style={{ aspectRatio: '1/1', background: '#12181e' }} />
                           )}
                           {SUBTEAM_BADGES[m.badge ?? subteam] && (
-                            <img src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
+                            <img loading="lazy" decoding="async" src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
                           )}
                         </button>
                       )}
                       <div style={{ fontFamily: "'Resiple',sans-serif", fontWeight: 700, fontSize: 16.5, marginTop: 12 }}>{m.name}</div>
                       {(m.role || m.lead) && (
-                        <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color, marginTop: 4 }}>{m.role ?? 'Team Lead'}</div>
+                        <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color, marginTop: 4 }}>{m.role ?? 'Subteam Lead'}</div>
                       )}
                     </div>
                   );
@@ -485,7 +485,7 @@ export default function App() {
           {/* TEAM PHOTO */}
           <figure style={{ margin: '72px 0 0' }}>
             <div style={{ position: 'relative', padding: 14, border: '2px solid #086727', boxShadow: '10px 10px 0 rgba(8,103,39,0.35)' }}>
-              <img src="/team.jpg" alt="The GeoData team on the stairs of Upson Hall" style={{ display: 'block', width: '100%', height: 'auto' }} />
+              <img loading="lazy" decoding="async" src="/team.jpg" alt="The GeoData team on the stairs of Upson Hall" style={{ display: 'block', width: '100%', height: 'auto' }} />
               <figcaption style={{ position: 'absolute', bottom: 30, left: 30, background: '#086727', color: '#eaf2ee', fontFamily: "'Intan',sans-serif", fontSize: 'clamp(16px,2.2vw,24px)', letterSpacing: '0.04em', padding: '10px 22px', whiteSpace: 'nowrap' }}>Team Photo '25–'26</figcaption>
             </div>
           </figure>

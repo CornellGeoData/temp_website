@@ -289,12 +289,32 @@ export class GlobeEngine {
       wrap.add(obj);
       return wrap;
     };
+    // skeleton placeholder so the hero never shows empty space while the GLB
+    // downloads — a dim shaded sphere at the earth's final 0.571 surface radius
+    const placeholder = new THREE.Mesh(
+      new THREE.SphereGeometry(0.571, 48, 32),
+      new THREE.MeshStandardMaterial({ color: 0x16222e, roughness: 0.9 }),
+    );
+    group.add(placeholder);
     loader.load('/models/earth.glb', (gltf) => {
+      group.remove(placeholder);
+      placeholder.geometry.dispose();
+      placeholder.material.dispose();
       const earth = fit(gltf.scene, R);
       // spin the model so its painted continents line up with the latLon math
       earth.rotation.y = 0.7;
       group.add(earth);
+      // the satellite and clocktower are secondary — start them only after the
+      // earth is up so they never compete with it for bandwidth on mobile
+      this.loadSecondary(loader, group, fit);
     });
+  }
+
+  loadSecondary(
+    loader: GLTFLoader,
+    group: THREE.Group,
+    fit: (obj: THREE.Object3D, targetR: number) => THREE.Group,
+  ): void {
     loader.load('/models/satellite.glb', (gltf) => {
       this.satBody.clear();
       this.satBody.add(fit(gltf.scene, 0.33));

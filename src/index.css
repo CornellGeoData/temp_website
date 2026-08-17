@@ -5,28 +5,33 @@
 /* full weight range so the title's font-weight:700 doesn't add faux-bold on
    top of Intan's already-heavy single cut */
 @font-face {
+  font-display: swap;
   font-family: 'Intan';
   src: url('/fonts/intan.otf');
   font-weight: 100 900;
 }
 
 @font-face {
+  font-display: swap;
   font-family: 'Resiple';
   src: url('/fonts/resiple.ttf');
 }
 
 @font-face {
+  font-display: swap;
   font-family: 'Parachutes Sans';
   src: url('/fonts/parachutes-sans.ttf');
 }
 
 @font-face {
+  font-display: swap;
   font-family: 'Manti Sans';
   src: url('/fonts/manti-sans.otf');
   font-weight: normal;
 }
 
 @font-face {
+  font-display: swap;
   font-family: 'Manti Sans';
   src: url('/fonts/manti-sans-bold.otf');
   font-weight: bold;

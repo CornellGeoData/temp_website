@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { GlobeEngine } from './globeEngine';
+import type { GlobeEngine } from './globeEngine';
 
 interface Card {
   color: string;
@@ -67,12 +67,17 @@ export default function Globe() {
   const [openCard, setOpenCard] = useState<string | null>(null);
 
   useEffect(() => {
-    const engine = new GlobeEngine();
-    engine.mount({
-      canvasEl: canvasRef.current!,
-      onPropClick: (key) => setOpenCard(key),
+    // dynamic import keeps three.js out of the initial bundle — the hero copy
+    // paints immediately and the globe streams in behind it
+    let engine: GlobeEngine | undefined;
+    let cancelled = false;
+    const canvasEl = canvasRef.current!;
+    import('./globeEngine').then((mod) => {
+      if (cancelled) return;
+      engine = new mod.GlobeEngine();
+      engine.mount({ canvasEl, onPropClick: (key) => setOpenCard(key) });
     });
-    return () => engine.unmount();
+    return () => { cancelled = true; engine?.unmount(); };
   }, []);
 
   const card = openCard ? CARDS[openCard] : null;

@@ -56,7 +56,7 @@
   {
     "name": "Kieran Mohindra-Green",
     "subteam": "Air",
-    "photo": "/members/kieran.jpeg",
+    "photo": "/members/kieran.jpg",
     "email": "kam542@cornell.edu",
     "major": "Atmospheric Science"
   },
@@ -78,28 +78,28 @@
     "name": "Duke Gandin",
     "subteam": "Water",
     "lead": true,
-    "photo": "/members/duke.png",
+    "photo": "/members/duke.jpg",
     "email": "dag374@cornell.edu",
     "major": "Electrical Engineering"
   },
   {
     "name": "Hayden Fu",
     "subteam": "Water",
-    "photo": "/members/hayden.png",
+    "photo": "/members/hayden.jpg",
     "email": "hmf63@cornell.edu",
     "major": "Computer Science"
   },
   {
     "name": "Sean Welker",
     "subteam": "Water",
-    "photo": "/members/sean.jpeg",
+    "photo": "/members/sean.jpg",
     "email": "sw2458@cornell.edu",
     "major": "Environmental Engineering"
   },
   {
     "name": "Xingjian (Henry) Mu",
     "subteam": "Water",
-    "photo": "/members/henry.jpeg",
+    "photo": "/members/henry.jpg",
     "email": "xm245@cornell.edu",
     "major": "Pre-Med"
   },
@@ -150,14 +150,14 @@
   {
     "name": "Sameer Nathawat",
     "subteam": "Rock",
-    "photo": "/members/sameer.png",
+    "photo": "/members/sameer.jpg",
     "email": "sn729@cornell.edu",
     "major": "Computer Science"
   },
   {
     "name": "Sophia Doyle",
     "subteam": "Rock",
-    "photo": "/members/sophia.jpeg",
+    "photo": "/members/sophia.jpg",
     "email": "skd86@cornell.edu",
     "major": "Biological Engineering"
   },
@@ -179,14 +179,14 @@
   {
     "name": "Christopher Au",
     "subteam": "Data",
-    "photo": "/members/christopher.jpeg",
+    "photo": "/members/christopher.jpg",
     "email": "cta48@cornell.edu",
     "major": "Computer Science"
   },
   {
     "name": "Adam Zachry",
     "subteam": "Data",
-    "photo": "/members/adam.jpeg",
+    "photo": "/members/adam.jpg",
     "email": "mb2926@cornell.edu",
     "major": "Computer Science"
   },
@@ -194,14 +194,14 @@
     "name": "Avinash Aravind",
     "subteam": "Tech",
     "lead": true,
-    "photo": "/members/avinash.png",
+    "photo": "/members/avinash.jpg",
     "email": "aa2476@cornell.edu",
     "major": "Atmospheric Science"
   },
   {
     "name": "Danna Acosta",
     "subteam": "Tech",
-    "photo": "/members/danna.jpeg",
+    "photo": "/members/danna.jpg",
     "email": "dsa72@cornell.edu",
     "major": "Mechanical Engineering"
   },
@@ -222,7 +222,7 @@
   {
     "name": "Suchit Basineni",
     "subteam": "Tech",
-    "photo": "/members/suchit.png",
+    "photo": "/members/suchit.jpg",
     "email": "ssb278@cornell.edu",
     "major": "Computer Science"
   },
