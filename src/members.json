@@ -61,7 +61,7 @@
   {
     "name": "Kieran Mohindra-Green",
     "subteam": "Air",
-    "photo": "/members/kieran.jpg",
+    "photo": "/members/kieran.jpeg",
     "email": "kam542@cornell.edu",
     "major": "Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/kieran-mohindra-green-02395b368/"
@@ -86,7 +86,7 @@
     "name": "Duke Gandin",
     "subteam": "Water",
     "lead": true,
-    "photo": "/members/duke.jpg",
+    "photo": "/members/duke.png",
     "email": "dag374@cornell.edu",
     "major": "Electrical Engineering",
     "linkedin": "https://www.linkedin.com/in/duke-gandin/"
@@ -94,7 +94,7 @@
   {
     "name": "Hayden Fu",
     "subteam": "Water",
-    "photo": "/members/hayden.jpg",
+    "photo": "/members/hayden.png",
     "email": "hmf63@cornell.edu",
     "major": "Computer Science and Statistics",
     "linkedin": "https://www.linkedin.com/in/hayden-fu/"
@@ -102,7 +102,7 @@
   {
     "name": "Sean Welker",
     "subteam": "Water",
-    "photo": "/members/sean.jpg",
+    "photo": "/members/sean.jpeg",
     "email": "sw2458@cornell.edu",
     "major": "Environmental Engineering",
     "linkedin": "https://www.linkedin.com/in/sean-welker-32aa10348"
@@ -110,7 +110,7 @@
   {
     "name": "Xingjian (Henry) Mu",
     "subteam": "Water",
-    "photo": "/members/henry.jpg",
+    "photo": "/members/henry.jpeg",
     "email": "xm245@cornell.edu",
     "major": "Pre-Med",
     "linkedin": "https://www.linkedin.com/in/henry-mu-4a79b8349/"
@@ -168,7 +168,7 @@
   {
     "name": "Sameer Nathawat",
     "subteam": "Rock",
-    "photo": "/members/sameer.jpg",
+    "photo": "/members/sameer.png",
     "email": "sn729@cornell.edu",
     "major": "Computer Science",
     "linkedin": "https://www.linkedin.com/in/sameer-nathawat/"
@@ -176,7 +176,7 @@
   {
     "name": "Sophia Doyle",
     "subteam": "Rock",
-    "photo": "/members/sophia.jpg",
+    "photo": "/members/sophia.jpeg",
     "email": "skd86@cornell.edu",
     "major": "Biological Engineering",
     "linkedin": "https://www.linkedin.com/in/sophia-k-doyle"
@@ -201,7 +201,7 @@
   {
     "name": "Christopher Au",
     "subteam": "Data",
-    "photo": "/members/christopher.jpg",
+    "photo": "/members/christopher.jpeg",
     "email": "cta48@cornell.edu",
     "major": "Computer Science",
     "linkedin": "https://www.linkedin.com/in/cta48/"
@@ -209,7 +209,7 @@
   {
     "name": "Adam Zachry",
     "subteam": "Data",
-    "photo": "/members/adam.jpg",
+    "photo": "/members/adam.jpeg",
     "email": "mb2926@cornell.edu",
     "major": "Computer Science",
     "linkedin": "https://www.linkedin.com/in/adam-zachry/"
@@ -218,7 +218,7 @@
     "name": "Avinash Aravind",
     "subteam": "Tech",
     "lead": true,
-    "photo": "/members/avinash.jpg",
+    "photo": "/members/avinash.png",
     "email": "aa2476@cornell.edu",
     "major": "Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/avinash-aravind/"
@@ -226,7 +226,7 @@
   {
     "name": "Danna Acosta",
     "subteam": "Tech",
-    "photo": "/members/danna.jpg",
+    "photo": "/members/danna.jpeg",
     "email": "dsa72@cornell.edu",
     "major": "Mechanical Engineering",
     "linkedin": "https://www.linkedin.com/in/dannasacosta/"
@@ -250,7 +250,7 @@
   {
     "name": "Suchit Basineni",
     "subteam": "Tech",
-    "photo": "/members/suchit.jpg",
+    "photo": "/members/suchit.png",
     "email": "ssb278@cornell.edu",
     "major": "Computer Science",
     "linkedin": "https://www.linkedin.com/in/suchit-basineni/"

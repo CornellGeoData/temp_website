@@ -31,15 +31,15 @@ const PROJECTS: Project[] = [
     tagColor: '#914724',
     title: 'Cayuga Lake Sensor Network',
     body: 'Air, water and soil sensors at 13 sites around the lake. The result is a growing dataset for a region that has almost no dense environmental monitoring.',
-    photo: '/projects/sensors.jpg',
-    photo2: '/projects/sensors-lake.jpg',
+    photo: '/projects/sensors.png',
+    photo2: '/projects/sensors-lake.png',
   },
   {
     tag: 'Air',
     tagColor: '#6d9dcd',
     title: 'Atmospheric Tethersonde',
     body: 'An affordable, portable profiler for the lowest 500 feet of the atmosphere. We built it to get high-resolution observations of boundary-layer and lake-effect weather.',
-    photo: '/projects/tethersonde.jpg',
+    photo: '/projects/tethersonde.jpeg',
     photoAspect: '4/5',
     photoPosition: '57% 50%',
   },
@@ -48,7 +48,7 @@ const PROJECTS: Project[] = [
     tagColor: '#914724',
     title: 'NISAR Ground-Truthing',
     body: "Five soil-moisture nodes at the Game Farm site check NASA's NISAR satellite against what's actually in the dirt.",
-    photo: '/projects/nisar.jpg',
+    photo: '/projects/nisar.png',
     photoAspect: '4/5',
     photoPosition: '50% 40%',
   },
@@ -57,7 +57,7 @@ const PROJECTS: Project[] = [
     tagColor: '#8f0c3a',
     title: 'LiDAR Hexapod',
     body: 'A six-legged robot that carries a LiDAR scanner into terrain wheels can\'t handle. We\'re building it with CUPI to map the ground in 3D.',
-    photo: '/projects/hexapod.jpg',
+    photo: '/projects/hexapod.png',
   },
   {
     tag: 'Tech · Water',
@@ -489,7 +489,7 @@ export default function App() {
           {/* TEAM PHOTO */}
           <figure style={{ margin: '72px 0 0' }}>
             <div style={{ position: 'relative', padding: 14, border: '2px solid #086727', boxShadow: '10px 10px 0 rgba(8,103,39,0.35)' }}>
-              <img loading="lazy" decoding="async" src="/team.jpg" alt="The GeoData team on the stairs of Upson Hall" style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '1600/1065' }} />
+              <img loading="lazy" decoding="async" src="/team.jpg" alt="The GeoData team on the stairs of Upson Hall" style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '1600/1066' }} />
               <figcaption style={{ position: 'absolute', bottom: 30, left: 30, background: '#086727', color: '#eaf2ee', fontFamily: "'Intan',sans-serif", fontSize: 'clamp(16px,2.2vw,24px)', letterSpacing: '0.04em', padding: '10px 22px', whiteSpace: 'nowrap' }}>Team Photo '25–'26</figcaption>
             </div>
           </figure>
