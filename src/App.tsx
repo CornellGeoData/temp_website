@@ -11,6 +11,7 @@ interface Member {
   photo: string; // path under /public, e.g. '/members/jane-doe.jpg' — empty string shows a placeholder
   email: string;
   major: string;
+  linkedin?: string;
 }
 
 interface Project {
@@ -62,7 +63,7 @@ const PROJECTS: Project[] = [
     tag: 'Tech · Water',
     tagColor: '#8f0c3a',
     title: 'Drone Photogrammetry',
-    body: 'We fly a DJI Mavic M3 in overlapping passes above the Finger Lakes, then stitch the aerial photos into 3D photogrammetric scans of shorelines and terrain.',
+    body: 'We fly a DJI Mavic M 3 in overlapping passes above the Finger Lakes, then stitch the aerial photos into 3D photogrammetric scans of shorelines and terrain.',
     photo: '/projects/drone.webp',
   },
 ];
@@ -393,19 +394,19 @@ export default function App() {
       {/* MEMBERS */}
       <section id="members" style={{ position: 'relative', zIndex: 2, background: '#080b0f', padding: '48px clamp(24px,5vw,72px) 96px' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '28px 48px', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <div className="members-head" style={{ display: 'flex', flexWrap: 'wrap', gap: '28px 48px', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#086727' }}>The team</div>
               <h2 style={{ fontFamily: "'Manti Sans',sans-serif", fontWeight: 700, fontSize: 'clamp(36px,4.8vw,60px)', letterSpacing: '-0.02em', lineHeight: 1.02, margin: '18px 0 0' }}>Members</h2>
             </div>
-            <div style={{ padding: '26px 36px', display: 'flex', gap: 48 }}>
+            <div className="members-stats" style={{ padding: '26px 36px', display: 'flex', gap: 48 }}>
               <div>
-                <div style={{ fontFamily: "'Manti Sans',sans-serif", fontWeight: 700, fontSize: 46, lineHeight: 1, color: '#086727' }}>{SUBTEAM_COUNT}</div>
-                <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a9bcc6', marginTop: 10 }}>Subteams</div>
+                <div className="stat-num" style={{ fontFamily: "'Manti Sans',sans-serif", fontWeight: 700, fontSize: 46, lineHeight: 1, color: '#086727' }}>{SUBTEAM_COUNT}</div>
+                <div className="stat-label" style={{ fontFamily: "'Resiple',sans-serif", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a9bcc6', marginTop: 10 }}>Subteams</div>
               </div>
               <div>
-                <div style={{ fontFamily: "'Manti Sans',sans-serif", fontWeight: 700, fontSize: 46, lineHeight: 1, color: '#086727' }}>{MEMBER_COUNT}</div>
-                <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a9bcc6', marginTop: 10 }}>Members</div>
+                <div className="stat-num" style={{ fontFamily: "'Manti Sans',sans-serif", fontWeight: 700, fontSize: 46, lineHeight: 1, color: '#086727' }}>{MEMBER_COUNT}</div>
+                <div className="stat-label" style={{ fontFamily: "'Resiple',sans-serif", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a9bcc6', marginTop: 10 }}>Members</div>
               </div>
             </div>
           </div>
@@ -415,7 +416,7 @@ export default function App() {
                 <span style={{ width: 12, height: 12, borderRadius: 3, background: SUBTEAM_COLORS[subteam] ?? '#7c909b', display: 'inline-block' }} />
                 {teamLabel(subteam)}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(190px,100%),1fr))', gap: '36px 28px', marginTop: 26 }}>
+              <div className="members-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(190px,100%),1fr))', gap: '36px 28px', marginTop: 26 }}>
                 {MEMBERS.filter((m) => m.subteam === subteam).map((m, i) => {
                   const tileKey = `${subteam}:${i}`;
                   const color = SUBTEAM_COLORS[m.badge ?? subteam] ?? '#7c909b';
@@ -431,7 +432,7 @@ export default function App() {
                           ) : (
                             <div style={{ aspectRatio: '1/1', background: '#12181e' }} />
                           )}
-                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(12,18,24,0.82)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', border: `2px solid ${color}`, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
+                          <div className="member-flip" style={{ position: 'absolute', inset: 0, background: 'rgba(12,18,24,0.82)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', border: `2px solid ${color}`, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
                           <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color }}>{m.role ?? (m.lead ? 'Subteam Lead' : 'Contact')}</div>
                           <div style={{ fontSize: 14.5, color: '#b6c6ce' }}>{m.major || 'Major TBD'}</div>
                           {m.email ? (
@@ -449,9 +450,12 @@ export default function App() {
                           ) : (
                             <span style={{ fontSize: 13.5, color: '#5f7078' }}>Contact coming soon</span>
                           )}
+                          {m.linkedin && (
+                            <a href={m.linkedin} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontFamily: "'Resiple',sans-serif", fontSize: 12, letterSpacing: '0.06em', color: '#a9bcc6' }}>LinkedIn</a>
+                          )}
                           </div>
                           {SUBTEAM_BADGES[m.badge ?? subteam] && (
-                            <img loading="lazy" decoding="async" src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
+                            <img className="member-badge" loading="lazy" decoding="async" src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
                           )}
                         </div>
                       ) : (
@@ -467,7 +471,7 @@ export default function App() {
                             <div style={{ aspectRatio: '1/1', background: '#12181e' }} />
                           )}
                           {SUBTEAM_BADGES[m.badge ?? subteam] && (
-                            <img loading="lazy" decoding="async" src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
+                            <img className="member-badge" loading="lazy" decoding="async" src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
                           )}
                         </button>
                       )}
@@ -485,7 +489,7 @@ export default function App() {
           {/* TEAM PHOTO */}
           <figure style={{ margin: '72px 0 0' }}>
             <div style={{ position: 'relative', padding: 14, border: '2px solid #086727', boxShadow: '10px 10px 0 rgba(8,103,39,0.35)' }}>
-              <img loading="lazy" decoding="async" src="/team.jpg" alt="The GeoData team on the stairs of Upson Hall" style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '1400/932' }} />
+              <img loading="lazy" decoding="async" src="/team.jpg" alt="The GeoData team on the stairs of Upson Hall" style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '1600/1065' }} />
               <figcaption style={{ position: 'absolute', bottom: 30, left: 30, background: '#086727', color: '#eaf2ee', fontFamily: "'Intan',sans-serif", fontSize: 'clamp(16px,2.2vw,24px)', letterSpacing: '0.04em', padding: '10px 22px', whiteSpace: 'nowrap' }}>Team Photo '25–'26</figcaption>
             </div>
           </figure>

@@ -114,17 +114,55 @@ a:hover {
     font-size: 13px !important;
   }
 
-  /* no globe on mobile — the hero is a plain text block, so give it its own
-     breathing room top and bottom */
+  /* no globe on mobile — the hero text centers in the full-height section so
+     the projects below stay off-screen until the user scrolls */
   .hero-panel {
     width: 100% !important;
-    padding: 96px 24px 56px !important;
-    justify-content: flex-start !important;
+    padding: 0 24px !important;
+    justify-content: center !important;
   }
 
   #projects,
   #members {
     padding: 72px 24px !important;
+  }
+
+  /* compact stats so they share a row with the "Members" heading (measured:
+     fits 360px+; wraps gracefully below that) */
+  .members-head {
+    gap: 20px 16px !important;
+  }
+
+  .members-stats {
+    padding: 0 !important;
+    gap: 20px !important;
+  }
+
+  .stat-num {
+    font-size: 30px !important;
+  }
+
+  .stat-label {
+    font-size: 10px !important;
+    margin-top: 6px !important;
+  }
+
+  /* two tiles per row instead of one huge full-width card */
+  .members-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 24px 16px !important;
+  }
+
+  .member-badge {
+    width: 28px !important;
+    height: 28px !important;
+    top: 6px !important;
+    right: 6px !important;
+  }
+
+  .member-flip {
+    padding: 10px !important;
+    gap: 6px !important;
   }
 
   #join {
