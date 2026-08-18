@@ -160,9 +160,48 @@ a:hover {
     right: 6px !important;
   }
 
+  /* contact overlay on ~160px tiles: shrink type to fit the square, and keep
+     overflowing content reachable instead of clipped */
   .member-flip {
-    padding: 10px !important;
-    gap: 6px !important;
+    padding: 8px !important;
+    gap: 5px !important;
+    justify-content: safe center !important;
+    overflow-y: auto;
+  }
+
+  .member-flip > div:first-child {
+    font-size: 9.5px !important;
+  }
+
+  .member-flip > div:nth-child(2) {
+    font-size: 11.5px !important;
+  }
+
+  .member-flip a {
+    font-size: 11px !important;
+  }
+
+  .member-flip button {
+    font-size: 9.5px !important;
+    padding: 2px 8px !important;
+  }
+
+  /* footer "Supported by": one partner per row instead of the 2x2 columns */
+  .partners-grid {
+    grid-auto-flow: row !important;
+    grid-template-rows: none !important;
+  }
+
+  /* team photo: slimmer frame and caption pill at phone width */
+  .team-photo-frame {
+    padding: 8px !important;
+  }
+
+  .team-photo-caption {
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+    bottom: 16px !important;
+    left: 16px !important;
   }
 
   #join {

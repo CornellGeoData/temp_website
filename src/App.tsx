@@ -421,7 +421,7 @@ export default function App() {
                   const tileKey = `${subteam}:${i}`;
                   const color = SUBTEAM_COLORS[m.badge ?? subteam] ?? '#7c909b';
                   return (
-                    <div key={i}>
+                    <div key={i} style={{ position: 'relative' }}>
                       {flippedMember === tileKey ? (
                         <div
                           onClick={() => setFlippedMember(null)}
@@ -451,12 +451,9 @@ export default function App() {
                             <span style={{ fontSize: 13.5, color: '#5f7078' }}>Contact coming soon</span>
                           )}
                           {m.linkedin && (
-                            <a href={m.linkedin} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontFamily: "'Resiple',sans-serif", fontSize: 12, letterSpacing: '0.06em', color: '#a9bcc6' }}>LinkedIn</a>
+                            <a href={m.linkedin} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontFamily: "'Resiple',sans-serif", fontSize: 12, letterSpacing: '0.06em', color: '#a9bcc6', alignSelf: 'flex-start' }}>LinkedIn</a>
                           )}
                           </div>
-                          {SUBTEAM_BADGES[m.badge ?? subteam] && (
-                            <img className="member-badge" loading="lazy" decoding="async" src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
-                          )}
                         </div>
                       ) : (
                         <button
@@ -470,10 +467,10 @@ export default function App() {
                           ) : (
                             <div style={{ aspectRatio: '1/1', background: '#12181e' }} />
                           )}
-                          {SUBTEAM_BADGES[m.badge ?? subteam] && (
-                            <img className="member-badge" loading="lazy" decoding="async" src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, userSelect: 'none', WebkitUserSelect: 'none' }} />
-                          )}
                         </button>
+                      )}
+                      {SUBTEAM_BADGES[m.badge ?? subteam] && (
+                        <img className="member-badge" decoding="async" src={SUBTEAM_BADGES[m.badge ?? subteam]} alt={`${m.badge ?? subteam} team badge`} draggable={false} style={{ position: 'absolute', top: 8, right: 8, width: 36, height: 36, pointerEvents: 'none', userSelect: 'none', WebkitUserSelect: 'none' }} />
                       )}
                       <div style={{ fontFamily: "'Resiple',sans-serif", fontWeight: 700, fontSize: 16.5, marginTop: 12 }}>{m.name}</div>
                       {(m.role || m.lead) && (
@@ -488,9 +485,9 @@ export default function App() {
 
           {/* TEAM PHOTO */}
           <figure style={{ margin: '72px 0 0' }}>
-            <div style={{ position: 'relative', padding: 14, border: '2px solid #086727', boxShadow: '10px 10px 0 rgba(8,103,39,0.35)' }}>
+            <div className="team-photo-frame" style={{ position: 'relative', padding: 14, border: '2px solid #086727', boxShadow: '10px 10px 0 rgba(8,103,39,0.35)' }}>
               <img loading="lazy" decoding="async" src="/team.jpg" alt="The GeoData team on the stairs of Upson Hall" style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '1600/1066' }} />
-              <figcaption style={{ position: 'absolute', bottom: 30, left: 30, background: '#086727', color: '#eaf2ee', fontFamily: "'Intan',sans-serif", fontSize: 'clamp(16px,2.2vw,24px)', letterSpacing: '0.04em', padding: '10px 22px', whiteSpace: 'nowrap' }}>Team Photo '25–'26</figcaption>
+              <figcaption className="team-photo-caption" style={{ position: 'absolute', bottom: 30, left: 30, background: '#086727', color: '#eaf2ee', fontFamily: "'Intan',sans-serif", fontSize: 'clamp(16px,2.2vw,24px)', letterSpacing: '0.04em', padding: '10px 22px', whiteSpace: 'nowrap' }}>Team Photo '25–'26</figcaption>
             </div>
           </figure>
         </div>
@@ -525,7 +522,7 @@ export default function App() {
             </div>
             <div style={{ flex: '1 1 220px' }}>
               <div style={{ fontFamily: "'Resiple',sans-serif", fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7c909b' }}>Supported by</div>
-              <div style={{ display: 'grid', gridTemplateRows: 'repeat(2, auto)', gridAutoFlow: 'column', gridAutoColumns: 'max-content', gap: '8px 40px', marginTop: 14, fontSize: 14, color: '#a9bcc6' }}>
+              <div className="partners-grid" style={{ display: 'grid', gridTemplateRows: 'repeat(2, auto)', gridAutoFlow: 'column', gridAutoColumns: 'max-content', gap: '8px 40px', marginTop: 14, fontSize: 14, color: '#a9bcc6' }}>
                 {PARTNERS.map((partner) => (
                   <span key={partner}>{partner}</span>
                 ))}
