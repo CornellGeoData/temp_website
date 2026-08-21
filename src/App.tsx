@@ -551,6 +551,7 @@ export default function App() {
             <a href="#/privacy" style={{ color: '#7c909b' }}>Privacy Policy</a>
             <a href="#/terms" style={{ color: '#7c909b' }}>Terms of Use</a>
             <a href="https://accessibility.cornell.edu" style={{ color: '#7c909b' }}>Web Accessibility Assistance</a>
+            <a href="https://officeofcivilrights.cornell.edu/what-we-do/equal-opportunity-affirmative-action/" style={{ color: '#7c909b' }}>Equal Education and Employment Opportunity</a>
           </div>
           <div style={{ marginTop: 6, fontSize: 10.5, color: '#4d5b63', maxWidth: 720 }}>
             CU GeoData is a registered student organization of Cornell University. This website is maintained by its student members and does not represent the official views of Cornell University.
