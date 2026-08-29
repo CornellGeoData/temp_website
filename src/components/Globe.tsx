@@ -18,7 +18,7 @@ export default function Globe() {
     const canvasEl = canvasRef.current!;
     import('../lib/globeEngine').then((mod) => {
       if (cancelled) return;
-      const e = new mod.GlobeEngine();
+      const e = new mod.GlobeEngine({ userZoom: false }); // hero globe: drag only, no zoom
       e.mount({ canvasEl, onNoWebGL: () => setNoWebGL(true) });
       engine = e;
     });

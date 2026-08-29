@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { TILE, lonToX, latToY, xToLon, yToLat, metresPerPixel } from '../lib/mercator';
-import type { GlobeSite } from '../lib/sites';
+import { TILE, lonToX, latToY, xToLon, yToLat } from '../lib/mercator';
+import { AIR, SOIL, type GlobeSite } from '../lib/sites';
 import { RESIPLE } from '../styles/theme';
 
 // Esri World Imagery: keyless, and the only free source that actually reaches
@@ -18,9 +18,9 @@ const easeInOut = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t 
 
 export interface MapTarget { lat: number; lon: number; zoom: number; nonce: number }
 
-export default function TileMap({ sites, selectedId, onSelect, target, initial, onView, dur = 1400 }: {
+export default function TileMap({ sites, selectedIds, onSelect, target, initial, onView, dur = 1400 }: {
   sites: GlobeSite[];
-  selectedId: string | null;
+  selectedIds: string[];
   onSelect: (id: string) => void;
   // the map eases to this whenever `nonce` changes
   target: MapTarget;
@@ -33,6 +33,9 @@ export default function TileMap({ sites, selectedId, onSelect, target, initial, 
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // tiles fade in on arrival instead of popping; once seen, a tile stays
+  // opaque across re-renders (the set outlives the onLoad DOM write)
+  const seen = useRef(new Set<string>()).current;
   const [view, setView] = useState(initial ?? { lat: target.lat, lon: target.lon, zoom: target.zoom });
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -90,10 +93,9 @@ export default function TileMap({ sites, selectedId, onSelect, target, initial, 
       if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
       el.style.cursor = 'grab';
     };
-    // same rule as the globe: a plain wheel belongs to the page, a pinch or
-    // cmd/ctrl+wheel belongs to the map
+    // unlike the globe, the map owns a plain wheel too: the imagery fills the
+    // page, so scrolling reads as zoom, not as leaving
     const wheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const v = viewRef.current;
       setView({ ...v, zoom: clamp(v.zoom - e.deltaY * 0.01, MIN_Z, MAX_Z) });
@@ -133,14 +135,16 @@ export default function TileMap({ sites, selectedId, onSelect, target, initial, 
       for (let y = Math.floor((cy - halfH) / TILE); y <= Math.floor((cy + halfH) / TILE); y++) {
         if (y < 0 || y >= n) continue;
         const wx = ((x % n) + n) % n;
+        const url = TILE_URL(lvl, wx, y);
         out.push(
           <img
             key={`${lvl}/${wx}/${y}`}
-            src={TILE_URL(lvl, wx, y)}
+            src={url}
             alt=""
             draggable={false}
             decoding="async"
-            style={{ position: 'absolute', left: x * TILE - cx, top: y * TILE - cy, width: TILE, height: TILE, userSelect: 'none' }}
+            onLoad={(e) => { seen.add(url); e.currentTarget.style.opacity = '1'; }}
+            style={{ position: 'absolute', left: x * TILE - cx, top: y * TILE - cy, width: TILE, height: TILE, userSelect: 'none', opacity: seen.has(url) ? 1 : 0, transition: 'opacity 250ms ease' }}
           />,
         );
       }
@@ -159,11 +163,6 @@ export default function TileMap({ sites, selectedId, onSelect, target, initial, 
     y: (latToY(s.lat, Z) - cy) * scale + h / 2,
   });
 
-  // scale bar: widest 1-2-5 distance that fits in 140px
-  const mpp = metresPerPixel(view.lat, view.zoom);
-  const nice = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2000, 5000];
-  const barM = [...nice].reverse().find((m) => m / mpp <= 140) ?? 1;
-
   return (
     <div ref={boxRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', cursor: 'grab', background: '#0e141c', touchAction: 'pan-y' }}>
       {/* the parent level sits underneath so a zoom step never shows through to
@@ -171,38 +170,65 @@ export default function TileMap({ sites, selectedId, onSelect, target, initial, 
       {Z > MIN_Z && layer(Z - 1)}
       {layer(Z)}
 
+      {/* Jefferson-style markers: the color is the information - a solid dot
+          per family, hollow for retired, no names printed on the map. The
+          name fades in on hover and stays while selected; the legend below
+          decodes the colors. */}
+      <style>{'.pin-label{opacity:0;transition:opacity .15s ease}button:hover>.pin-label{opacity:1}'}</style>
       {sites.map((s) => {
         const p = screen(s);
         if (!w || p.x < -80 || p.y < -40 || p.x > w + 80 || p.y > h + 40) return null;
-        const on = s.id === selectedId;
+        const on = selectedIds.includes(s.id);
         return (
           <button
             key={s.id}
             onClick={() => onSelect(s.id)}
-            title={`${s.name} - ${s.sub}`}
+            aria-label={`${s.name} - ${s.sub}`}
             style={{
-              position: 'absolute', left: p.x, top: p.y, transform: 'translate(-50%,-50%)',
-              display: 'inline-flex', alignItems: 'center', gap: 8, appearance: 'none', cursor: 'pointer',
-              padding: '6px 13px 6px 9px', borderRadius: 999, whiteSpace: 'nowrap',
-              background: on ? s.tone : 'rgba(14,20,28,0.82)',
-              border: `1px solid ${on ? s.tone : 'rgba(255,255,255,0.3)'}`,
-              color: on ? '#0e141c' : s.retired ? '#8fa2ac' : '#e6ecf0',
-              fontFamily: RESIPLE, fontSize: 12.5, letterSpacing: '0.08em', textTransform: 'uppercase',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
+              position: 'absolute', left: p.x, top: p.y, width: 0, height: 0, overflow: 'visible',
+              appearance: 'none', cursor: 'pointer', background: 'transparent', border: 'none', padding: 0,
             }}
           >
-            <span style={{ width: on ? 11 : 8, height: on ? 11 : 8, borderRadius: 999, flexShrink: 0, border: `2px solid ${on ? '#0e141c' : s.tone}`, background: s.retired ? 'transparent' : on ? '#0e141c' : s.tone }} />
-            {s.name}
+            <span style={{
+              position: 'absolute', left: -8, top: -8, width: 16, height: 16, borderRadius: 999,
+              background: s.retired ? 'transparent' : s.tone,
+              border: s.retired ? `2px solid ${s.tone}` : '2px solid rgba(14,20,28,0.9)',
+              // retired rings are hollow, so they get a dark line on both faces
+              // of the tone ring to hold their edge against any imagery
+              boxShadow:
+                (s.retired ? 'inset 0 0 0 1.5px rgba(14,20,28,0.9), 0 0 0 1.5px rgba(14,20,28,0.9), ' : '') +
+                (on ? `0 0 0 ${s.retired ? 4.5 : 3}px #ffffff, 0 0 16px ${s.tone}` : `0 0 9px ${s.tone}80, 0 1px 4px rgba(0,0,0,0.5)`),
+              transition: 'box-shadow .18s',
+            }} />
+            <span className="pin-label" style={{
+              position: 'absolute', left: 0, top: s.labelBelow ? 14 : -32, transform: 'translateX(-50%)', whiteSpace: 'nowrap',
+              fontFamily: RESIPLE, fontSize: 12.5, letterSpacing: '0.1em', textTransform: 'uppercase',
+              color: '#ffffff', textShadow: '0 1px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.6)',
+              opacity: on ? 1 : undefined, pointerEvents: 'none',
+            }}>
+              {s.name}
+            </span>
           </button>
         );
       })}
 
-      <div style={{ position: 'absolute', left: 14, bottom: 12, display: 'flex', alignItems: 'center', gap: 9, pointerEvents: 'none' }}>
-        <div style={{ width: barM / mpp, height: 6, borderLeft: '2px solid #e6ecf0', borderRight: '2px solid #e6ecf0', borderBottom: '2px solid #e6ecf0' }} />
-        <span style={{ fontFamily: RESIPLE, fontSize: 11.5, color: '#e6ecf0', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
-          {barM >= 1000 ? `${barM / 1000} km` : `${barM} m`}
-        </span>
+      {/* the legend that lets the dots stay wordless */}
+      <div style={{
+        position: 'absolute', left: 14, bottom: 12, display: 'flex', gap: 18, alignItems: 'center',
+        padding: '8px 14px', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
+        border: '1px solid #ffffff', pointerEvents: 'none',
+      }}>
+        {([
+          [AIR, 'Air quality'],
+          [SOIL, 'Soil moisture'],
+        ] as const).map(([tone, name]) => (
+          <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#ffffff' }}>
+            <span style={{ width: 10, height: 10, borderRadius: 999, background: tone, border: '1px solid rgba(14,20,28,0.9)' }} />
+            {name}
+          </span>
+        ))}
       </div>
+
       <span style={{ position: 'absolute', right: 12, bottom: 12, fontFamily: RESIPLE, fontSize: 10.5, color: 'rgba(230,236,240,0.75)', textShadow: '0 1px 3px rgba(0,0,0,0.9)', pointerEvents: 'none' }}>
         {ATTRIBUTION}
       </span>

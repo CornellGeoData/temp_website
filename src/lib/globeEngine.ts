@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Framework-agnostic three.js globe engine. Mounted onto a <canvas> by
 // Globe.tsx (the home hero) and SensorGlobe.tsx (the sensor picker); has no
@@ -20,6 +19,8 @@ export interface GlobeOptions {
   zoom?: number;
   minZoom?: number;
   maxZoom?: number;
+  // false: wheel/pinch leave the zoom alone - only flyTo() moves it
+  userZoom?: boolean;
   // 'window': the canvas is a full-viewport backdrop, measured off the window.
   // 'element': the canvas fills its own box, measured with a ResizeObserver.
   sizeMode?: 'window' | 'element';
@@ -37,8 +38,6 @@ export type Projected = { x: number; y: number; visible: boolean };
 const SURFACE_R = 0.571;
 const PIN_R = 0.585;
 const TWO_PI = Math.PI * 2;
-// derived from the model's own UVs - see loadModels()
-const TEXTURE_ROT_Y = -0.9369;
 
 // scratch vectors - projection runs per pin per frame and must not allocate
 const _pos = new THREE.Vector3();
@@ -57,6 +56,7 @@ export class GlobeEngine {
   _destroyed = false;
   _noWebGL = false;
   _paused = false;
+  _shown = false;
   _raf?: number;
   _dragCleanup?: () => void;
   _ro?: ResizeObserver;
@@ -100,6 +100,7 @@ export class GlobeEngine {
       zoom: opts.zoom ?? 1,
       minZoom: opts.minZoom ?? 0.2,
       maxZoom: opts.maxZoom ?? 5,
+      userZoom: opts.userZoom ?? true,
       sizeMode: opts.sizeMode ?? 'window',
       cameraZ: opts.cameraZ ?? 3.4,
       onFrame: opts.onFrame,
@@ -120,9 +121,12 @@ export class GlobeEngine {
       const renderer = this.renderer;
       const camera = this.camera;
       const elementSized = this.opts.sizeMode === 'element';
-      const box = elementSized ? canvasEl.getBoundingClientRect() : null;
-      const w = box ? Math.round(box.width) : window.innerWidth;
-      const h = box ? Math.round(box.height) : window.innerHeight;
+      // layout size, not getBoundingClientRect: the sensors stage CSS-scales
+      // the canvas during the map cross-fade, and a resize measured off the
+      // scaled rect bakes that factor into the renderer, throwing project()
+      // (and the site pin riding on it) off for good
+      const w = elementSized ? canvasEl.clientWidth : window.innerWidth;
+      const h = elementSized ? canvasEl.clientHeight : window.innerHeight;
       if (w === 0 || h === 0) return;
       this.isMobile = window.innerWidth <= 720;
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -157,6 +161,12 @@ export class GlobeEngine {
     }
     this.addDrag();
     this.onResize();
+    // the canvas fades in off the first rendered frame instead of popping:
+    // skeleton, stars and (when the texture beat the chunk) the earth all
+    // materialize together
+    this._shown = false;
+    canvasEl.style.opacity = '0';
+    canvasEl.style.transition = 'opacity 600ms ease';
     this.animate();
   }
 
@@ -214,7 +224,7 @@ export class GlobeEngine {
       if (p) { p.x = e.clientX; p.y = e.clientY; }
       if (pointers.size === 2) {
         const d = pinchSpan();
-        if (pinchDist > 0) this.setZoom(this.zoom * d / pinchDist);
+        if (pinchDist > 0 && this.opts.userZoom) this.setZoom(this.zoom * d / pinchDist);
         pinchDist = d;
         return;
       }
@@ -240,6 +250,7 @@ export class GlobeEngine {
       // cmd/ctrl+wheel both arrive with a modifier set - those zoom, a plain
       // wheel is left alone and scrolls the page past the globe.
       if (!e.ctrlKey && !e.metaKey) return;
+      if (!this.opts.userZoom) return; // zoom disabled: leave browser zoom alone
       if (!overGlobe(e)) return;
       e.preventDefault();
       this._fly = undefined;
@@ -331,9 +342,14 @@ export class GlobeEngine {
     renderer.outputEncoding = THREE.sRGBEncoding;
     this.renderer = renderer;
 
-    scene.add(new THREE.AmbientLight(0x8fa6c4, 0.55));
-    const key = new THREE.DirectionalLight(0xffffff, 1.15); key.position.set(3, 2, 4); scene.add(key);
-    const rim = new THREE.DirectionalLight(0x5bb98a, 0.5); rim.position.set(-4, -1, -2); scene.add(rim);
+    // low ambient + key from the LEFT: the right limb (west Africa on both
+    // framings) falls into real shadow, so the desert reads as night side
+    // instead of a yellow glow on the edge. No rim light - anything grazing
+    // that limb relights the desert.
+    scene.add(new THREE.AmbientLight(0x8fa6c4, 0.28));
+    // z kept small: a large z fronts the light from the camera and floodlights
+    // the whole disc, leaving no terminator at all
+    const key = new THREE.DirectionalLight(0xffffff, 1.35); key.position.set(-4, 1.5, 1.2); scene.add(key);
 
     const group = new THREE.Group();
     this.group = group;
@@ -369,63 +385,39 @@ export class GlobeEngine {
     group.rotation.x = this.baseRotX;
   }
 
-  // some exported models carry non-finite node transforms, which poison both
-  // bounds measurement and rendering - repair them, then fit normally
-  fitModel(obj: THREE.Object3D, targetR: number): THREE.Group {
-    const finite3 = (p: { x: number; y: number; z: number }): boolean =>
-      isFinite(p.x) && isFinite(p.y) && isFinite(p.z);
-    obj.traverse((o) => {
-      if (!finite3(o.position)) o.position.set(0, 0, 0);
-      if (!isFinite(o.quaternion.x) || !isFinite(o.quaternion.w)) o.quaternion.identity();
-      if (!finite3(o.scale) || o.scale.x === 0 || o.scale.y === 0 || o.scale.z === 0) o.scale.set(1, 1, 1);
-    });
-    const sphere = new THREE.Box3().setFromObject(obj).getBoundingSphere(new THREE.Sphere());
-    const wrap = new THREE.Group();
-    if (isFinite(sphere.radius) && sphere.radius > 0) {
-      obj.position.sub(sphere.center);
-      wrap.scale.setScalar(targetR / sphere.radius);
-    }
-    wrap.add(obj);
-    return wrap;
-  }
-
   loadModels(group: THREE.Group): void {
-    // skeleton placeholder so the hero never shows empty space while the model
-    // downloads - a dim shaded sphere at the earth's final surface radius
-    const placeholder = new THREE.Mesh(
-      new THREE.SphereGeometry(SURFACE_R, 48, 32),
-      new THREE.MeshStandardMaterial({ color: 0x16222e, roughness: 0.9 }),
-    );
-    group.add(placeholder);
-    // The model ships a 1024x512 baked texture, which is ~39 km per pixel and
-    // turns to mush well before the ground. This is NASA Blue Marble at
-    // 4096x2048 (public domain), stored upside down because the mesh's UVs put
-    // v=0 at the south pole and glTF textures load with flipY off.
-    const tex = new THREE.TextureLoader().load('/earth-4k.jpg');
+    // No model file at all: the earth is one UV sphere built here. Three's
+    // SphereGeometry UVs are the standard equirectangular mapping and agree
+    // with latLon() exactly (u = (lon+180)/360), so there is no fitted
+    // rotation, no GLTFLoader chunk, and nothing to download but the texture.
+    // Until the jpg lands this doubles as the dim skeleton sphere.
+    const mat = new THREE.MeshStandardMaterial({ color: 0x16222e, roughness: 1 });
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(SURFACE_R, 96, 64), mat);
+    group.add(earth);
+
+    // NASA Blue Marble at 4096x2048 (public domain). The file is stored
+    // south-up (a glTF-era convention), so it loads with flipY off.
+    const white = new THREE.Color(0xffffff);
+    const dark = new THREE.Color(0x16222e);
+    const tex = new THREE.TextureLoader().load('/earth-4k.jpg', () => {
+      // upload now, off-screen, so the first frame that shows the earth does
+      // not also pay for 4k mipmap generation - that stutter reads as a flash
+      this.renderer?.initTexture(tex);
+      mat.map = tex;
+      mat.needsUpdate = true;
+      // material color multiplies the map: ease it dark -> white so the
+      // texture fades in over the skeleton instead of popping
+      const t0 = performance.now();
+      const fade = () => {
+        const k = Math.min(1, (performance.now() - t0) / 500);
+        mat.color.copy(dark).lerp(white, k);
+        if (k < 1 && !this._destroyed) requestAnimationFrame(fade);
+      };
+      fade();
+    });
     tex.flipY = false;
     tex.encoding = THREE.sRGBEncoding;
     if (this.renderer) tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-
-    new GLTFLoader().load('/models/earth_astroriah/scene.gltf', (gltf) => {
-      group.remove(placeholder);
-      placeholder.geometry.dispose();
-      placeholder.material.dispose();
-      const earth = this.fitModel(gltf.scene, 1);
-      earth.traverse((o) => {
-        const mat = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-        if (!mat || !('map' in mat)) return;
-        mat.map?.dispose();
-        mat.map = tex;
-        mat.needsUpdate = true;
-      });
-      // Spin so the painted continents line up with the latLon math. This is
-      // not hand-tuned: the model is one UV sphere whose texture is a south-up
-      // equirectangular map, so fitting its 2077 vertex UVs against latLon()
-      // gives a pure Y rotation of -0.9369 rad to within 0.28 degrees. An
-      // earlier 4.3 here put every projected pin ~300 degrees out.
-      earth.rotation.y = TEXTURE_ROT_Y;
-      group.add(earth);
-    });
   }
 
   animate = (): void => {
@@ -452,6 +444,11 @@ export class GlobeEngine {
     this.stars.rotation.y += 0.0004;
 
     renderer.render(this.scene, this.camera);
+    if (!this._shown) {
+      this._shown = true;
+      // next frame, so the opacity:0 start point has been committed first
+      requestAnimationFrame(() => { this.canvasEl.style.opacity = '1'; });
+    }
     this.opts.onFrame?.();
   };
 }
