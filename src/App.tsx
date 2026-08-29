@@ -55,7 +55,7 @@ export default function App() {
   return (
     <div style={{ position: 'relative', width: '100%', overflowX: 'clip', background: '#0e141c' }}>
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50 }}>
-      <a href="https://docs.google.com/forms/d/e/1FAIpQLSfI87dxinWPeDd9aevwKjwfP0NtWR8uJDhHeD9qjdQPXV9oiA/viewform?usp=dialog" target="_blank" rel="noopener noreferrer" style={{ display: 'block', overflow: 'hidden', textAlign: 'center', maxHeight: pastHero ? 0 : 44, padding: pastHero ? '0 16px' : '8px 16px', transition: 'max-height 0.3s, padding 0.3s', background: '#086727', color: '#eaf2ee', fontWeight: 700, fontSize: 14, fontFamily: RESIPLE }}>Upperclassmen Recruiting is Open until 9/3! →</a>
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSfI87dxinWPeDd9aevwKjwfP0NtWR8uJDhHeD9qjdQPXV9oiA/viewform?usp=dialog" target="_blank" rel="noopener noreferrer" style={{ display: 'block', overflow: 'hidden', textAlign: 'center', maxHeight: pastHero || onSensorsPage ? 0 : 44, padding: pastHero || onSensorsPage ? '0 16px' : '8px 16px', transition: 'max-height 0.3s, padding 0.3s', background: '#086727', color: '#eaf2ee', fontWeight: 700, fontSize: 14, fontFamily: RESIPLE }}>Upperclassmen Recruiting is Open until 9/3! →</a>
       <header className="site-header" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 42px', background: 'rgba(14,20,28,0.85)', fontFamily: RESIPLE }}>
         <a href="#top" className="logo-link" style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#e6ecf0', flexShrink: 0 }}>
           <img src="/logo.png" alt="" style={{ width: 78, height: 78, flexShrink: 0 }} />

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { RESIPLE, MANTI, H2, SUBPAGE } from '../styles/theme';
+import SensorGlobe from '../components/SensorGlobe';
+import { AIR, SOIL, type GlobeSite } from '../lib/sites';
 import soilArchive from '../data/soil-archive.json';
 
 // ACTIVE SENSORS - the /api/aqi proxy (server.mjs) passes through the Egg API's
@@ -32,11 +35,47 @@ function eggSeries(raw: unknown): { key: string; points: EggPoint[] }[] {
   return out;
 }
 
+// Dev preview only: with no /api/aqi proxy running the eggs are silent, which
+// leaves the charts invisible while styling them. Synthesize three plausible
+// days (5-min cadence, diurnal cycles, one PM event) so they render.
+// Production builds never call this - see the import.meta.env.DEV gate below.
+function fakeEggSeries(seed: number): { key: string; points: EggPoint[] }[] {
+  const now = Date.now();
+  const N = (3 * 24 * 60) / 5;
+  const day = (h: number, peak: number) => Math.cos(((h - peak) / 24) * 2 * Math.PI);
+  const mk = (f: (h: number, i: number) => number) => {
+    const pts: EggPoint[] = [];
+    for (let i = 0; i < N; i++) {
+      const t = now - 3 * 86_400_000 + i * 300_000;
+      const d = new Date(t);
+      pts.push({ t, v: f(d.getHours() + d.getMinutes() / 60, i) });
+    }
+    return pts;
+  };
+  const n = (amp: number) => (Math.random() - 0.5) * 2 * amp;
+  // a smoke event one afternoon, so the EPA bands have something to rate
+  const event = (i: number) => 9 * Math.exp(-(((i - 550 - seed * 90) / 45) ** 2));
+  const pm25 = (h: number, i: number) => Math.max(0.2, 4 + seed + 1.8 * day(h, 8) + event(i) + n(1.1));
+  return [
+    { key: 'pm2p5', points: mk(pm25) },
+    { key: 'pm10p0', points: mk((h, i) => pm25(h, i) * 1.6 + n(1)) },
+    { key: 'pm1p0', points: mk((h, i) => pm25(h, i) * 0.6 + n(0.5)) },
+    { key: 'co2', points: mk((h) => 425 + seed * 6 + 45 * day(h, 4) + n(8)) },
+    { key: 'no2', points: mk((h) => Math.max(0, 8 + 5 * day(h, 18) + n(2)) ) },
+    { key: 'o3', points: mk((h) => Math.max(0, 32 + 14 * day(h, 15) + n(3)) ) },
+    { key: 'so2', points: mk(() => Math.max(0, 0.8 + n(0.5))) },
+    { key: 'co', points: mk((h) => Math.max(0.05, 0.3 + 0.1 * day(h, 18) + n(0.05))) },
+    { key: 'temperature', points: mk((h) => 22 + seed + 5 * day(h, 15) + n(0.4)) },
+    { key: 'humidity', points: mk((h) => Math.min(97, Math.max(20, 68 - 14 * day(h, 15) + n(2)))) },
+    { key: 'pressure', points: mk((_h, i) => 1014 + 3 * Math.sin(i / 200) + n(0.3)) },
+  ];
+}
+
 // channels rendered in this order when present in the feed. PM readings in clean
 // air sit near 0 and quantize in ~0.1 steps, so those charts pin the baseline to
 // 0 with a minimum y-span instead of autoscaling the noise to full height.
-const EGG_CHANNELS: { key: string; label: string; unit: string; scale?: (v: number) => number; y0?: number; minSpan?: number; epaBands?: boolean }[] = [
-  { key: 'pm2p5', label: 'PM2.5', unit: 'µg/m³', epaBands: true },
+const EGG_CHANNELS: { key: string; label: string; unit: string; scale?: (v: number) => number; y0?: number; minSpan?: number; epaBands?: boolean; footnote?: string }[] = [
+  { key: 'pm2p5', label: 'PM2.5', unit: 'µg/m³', epaBands: true, footnote: '* EPA 24-hour safety standard: 9 µg/m³' },
   // pm10p0 isn't charted but still feeds the AQI badge via AQI_BP
   { key: 'pm1p0', label: 'PM1.0', unit: 'µg/m³', y0: 0, minSpan: 15 },
   // minSpan keeps a channel's ordinary wiggle from autoscaling to full height:
@@ -95,9 +134,10 @@ const fmtDay = (t: number) => new Date(t).toLocaleDateString([], { month: 'short
 const fmtMoYr = (t: number) => new Date(t).toLocaleDateString([], { month: 'short', year: 'numeric' });
 const fmtTick = (v: number) => (Math.abs(v % 1) < 1e-9 ? Math.round(v).toLocaleString() : v.toFixed(1));
 
-// plain white figure plate inset into the dark page: the chrome wears the brand,
-// the measurement is printed like a journal figure
-const PLATE = { paper: '#ffffff', rule: '#333333', grid: '#e7e7e7', ink: '#111111', muted: '#555555' };
+// dark-native figure plates: elevation comes from the slightly lighter
+// surface and a hairline, not from borders or colored frames, so the charts
+// read as one instrument panel over the night imagery
+const PLATE = { paper: '#151c26', rule: 'rgba(230,236,240,0.55)', grid: 'rgba(255,255,255,0.07)', ink: '#e6ecf0', muted: '#8fa0ab' };
 // the PM2.5 y-axis is anchored to the EPA health scale (top of the Moderate band);
 // the 9 µg/m³ standard itself is explained in the plate's footnote
 const PM_TOP = 35.4;
@@ -116,7 +156,7 @@ function niceTicks(lo: number, hi: number, n = 4): number[] {
 const CHART_H = 172;
 const M = { l: 46, r: 18, t: 10, b: 24 };
 
-function SensorChart({ label, unit, points, y0, minSpan, epaBands, rating, accent = '#6d9dcd' }: { label: string; unit: string; points: EggPoint[]; y0?: number; minSpan?: number; epaBands?: boolean; rating?: Rating; accent?: string }) {
+function SensorChart({ label, unit, points, y0, minSpan, epaBands, rating, footnote }: { label: string; unit: string; points: EggPoint[]; y0?: number; minSpan?: number; epaBands?: boolean; rating?: Rating; footnote?: string }) {
   const [hover, setHover] = useState<number | null>(null);
   // real pixel coordinates: the path is regenerated at the measured width, so the
   // geometry is never non-uniformly stretched and slope means rate of change
@@ -187,16 +227,16 @@ function SensorChart({ label, unit, points, y0, minSpan, epaBands, rating, accen
   };
 
   return (
-    <div style={{ background: PLATE.paper, border: `3px solid ${accent}`, padding: '16px 18px 12px' }}>
+    <div style={{ background: PLATE.paper, border: '1px solid rgba(255,255,255,0.08)', padding: '16px 18px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
           <div style={{ fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: PLATE.ink, whiteSpace: 'nowrap' }}>
-            {subPM(label)} <span style={{ textTransform: 'none', letterSpacing: 0, color: PLATE.muted }}>({unit})</span>
+            {subPM(label)}{unit && <> <span style={{ textTransform: 'none', letterSpacing: 0, color: PLATE.muted }}>({unit})</span></>}
           </div>
           {rating && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: RESIPLE, fontSize: 11.5, color: PLATE.muted, whiteSpace: 'nowrap' }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: rating((hp ?? cur).v)[2], border: '1px solid rgba(0,0,0,0.2)', flexShrink: 0 }} />
-              {rating((hp ?? cur).v)[1]}{epaBands && '*'}
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: rating((hp ?? cur).v)[2], border: '1px solid rgba(255,255,255,0.25)', flexShrink: 0 }} />
+              {rating((hp ?? cur).v)[1]}{footnote && '*'}
             </div>
           )}
         </div>
@@ -221,7 +261,9 @@ function SensorChart({ label, unit, points, y0, minSpan, epaBands, rating, accen
                   <text x={M.l - 7} y={Y(v)} fontSize={10.5} fill={PLATE.muted} textAnchor="end" dominantBaseline="middle" fontFamily="Resiple, sans-serif">{fmtTick(v)}</text>
                 </g>
               ))}
-              {xticks.map(({ t, midnight }) => (
+              {/* never let time labels crowd: keep every k-th tick so what
+                  remains fits the measured width */}
+              {xticks.filter((_, ti, a) => ti % Math.max(1, Math.ceil(a.length / Math.max(2, Math.floor(plotW / 70)))) === 0).map(({ t, midnight }) => (
                 <g key={t}>
                   <line x1={X(t)} x2={X(t)} y1={M.t + plotH} y2={M.t + plotH + 4} stroke={PLATE.rule} strokeWidth={1} />
                   <text x={X(t)} y={CHART_H - 7} fontSize={10} fill={PLATE.muted} textAnchor="middle" fontFamily="Resiple, sans-serif">
@@ -243,9 +285,9 @@ function SensorChart({ label, unit, points, y0, minSpan, epaBands, rating, accen
           )}
         </svg>
       </div>
-      {epaBands && (
+      {footnote && (
         <div style={{ fontFamily: RESIPLE, fontSize: 10.5, color: PLATE.muted, marginTop: 2 }}>
-          * EPA 24-hour safety standard: 9 µg/m³
+          {footnote}
         </div>
       )}
     </div>
@@ -264,7 +306,6 @@ function thin(pts: EggPoint[]): EggPoint[] {
 
 function SoilCharts({ points, lifetime }: { points: EggPoint[]; lifetime?: EggPoint[] }) {
   const newest = points[points.length - 1].t;
-  const live = Date.now() - newest < 75 * 60_000; // ~30 min LoRa cadence, 2 missed reports = offline
   // lifetime pops in when the slow archive fetch lands
   const windows = [
     { label: 'Lifetime', pts: lifetime ?? [] },
@@ -275,29 +316,28 @@ function SoilCharts({ points, lifetime }: { points: EggPoint[]; lifetime?: EggPo
     .map((w) => ({ ...w, pts: w.pts.length > 1 ? thin(w.pts) : w.pts }))
     .filter((w) => w.pts.length > 1);
   return (
-    <div>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: live ? '#4fae7d' : '#7c909b' }}>
-        <span style={{ width: 8, height: 8, borderRadius: 999, background: live ? '#4fae7d' : '#5f7078' }} />
-        {live ? 'Live' : 'Offline'} updated {fmtTime(newest)}
-      </div>
-      <p style={{ fontFamily: RESIPLE, fontSize: 13.5, color: '#a9bcc6', lineHeight: 1.65, maxWidth: 640, margin: '18px 0 0' }}>
-        The probe reports volumetric water content, the fraction of the soil volume that is
-        water. Readings shift with soil compaction, so the trend matters more than any single number.
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(400px,100%),1fr))', gap: 18, marginTop: 20 }}>
-        {windows.map((w) => (
-          <SensorChart key={w.label} label={w.label} unit="% VWC" points={w.pts} y0={0} minSpan={20} accent="#c1703f" />
-        ))}
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(320px,100%),1fr))', gap: 18 }}>
+      {windows.map((w) => (
+        <SensorChart key={w.label} label={w.label} unit="% VWC" points={w.pts} y0={0} minSpan={20} />
+      ))}
     </div>
   );
+}
+
+// "N 42\u00b0 27.060' W 76\u00b0 26.863'" -> decimal degrees. Degrees-and-decimal-
+// minutes is how the team records positions in the field, so it stays the stored
+// form and the globe derives its pins from it rather than keeping a second copy.
+function dm(coords: string): { lat: number; lon: number } {
+  const [lat, lon] = [...coords.matchAll(/([NSEW])\s*(\d+)\u00b0\s*([\d.]+)'/g)]
+    .map(([, hem, deg, min]) => (Number(deg) + Number(min) / 60) * (hem === 'S' || hem === 'W' ? -1 : 1));
+  return { lat, lon };
 }
 
 // one card per egg. Ids are the slot names /api/aqi assigns in EGG_SERIAL order,
 // so adding an egg = append its serial to EGG_SERIAL on the server + an entry here.
 const EGGS = [
-  { id: 'egg1', name: 'Snee Egg', location: 'Snee Hall roof' },
-  { id: 'egg2', name: 'ELL Egg', location: 'GeoData workbench' },
+  { id: 'egg1', name: 'Snee Egg', location: 'Snee Hall roof', coords: "N 42\u00b0 26.613' W 76\u00b0 29.105'" },
+  { id: 'egg2', name: 'ELL Egg', location: 'GeoData workbench', coords: "N 42\u00b0 26.636' W 76\u00b0 28.971'" },
 ];
 
 // Zynect Soilmotes ride the same Wicked Device API as the eggs, but the grouped
@@ -314,43 +354,31 @@ const ARCHIVE: Record<string, EggPoint[]> = Object.fromEntries(
   Object.entries(soilArchive as unknown as Record<string, [number, number][]>).map(([k, v]) => [k, v.map(([t, x]) => ({ t, v: x })).filter((p) => p.v !== 0)]),
 );
 const RETIRED = [
-  { coords: "N 42\u00b0 26.924' W 76\u00b0 26.812'", name: 'CENSE', from: '3/18/25', to: '6/18/26' },
+  // labelBelow: these two sit under GLITZ/CAMPS, so their names drop beneath
+  // the dot instead of landing on a neighbor
+  { coords: "N 42\u00b0 26.924' W 76\u00b0 26.812'", name: 'CENSE', from: '3/18/25', to: '6/18/26', labelBelow: true },
   { coords: "N 42\u00b0 26.926' W 76\u00b0 26.757'", name: 'NINJA', from: '3/21/26', to: '6/3/26' },
   { coords: "N 42\u00b0 27.032' W 76\u00b0 26.729'", name: 'CAMPS', from: '4/18/25', to: '4/19/26' },
   { coords: "N 42\u00b0 26.949' W 76\u00b0 26.816'", name: 'GLITZ', from: '3/18/25', to: '4/13/26' },
 ];
 
 function EggCharts({ series, unit }: { series: { key: string; points: EggPoint[] }[]; unit: 'C' | 'F' }) {
-  const newest = Math.max(...series.map((s) => s.points[s.points.length - 1].t));
-  const live = Date.now() - newest < 45 * 60_000;
   const charts = EGG_CHANNELS.map((c) => ({ ...c, series: series.find((s) => s.key === c.key) })).filter((c) => c.series);
-  // EPA AQI is defined on the 24h mean; take the worse of the PM2.5/PM10 sub-indices
-  const aqis = (['pm2p5', 'pm10p0'] as const).flatMap((k) => {
-    const s = series.find((x) => x.key === k);
-    return s ? [aqiFrom(s.points.reduce((a, p) => a + p.v, 0) / s.points.length, AQI_BP[k])] : [];
+  // US AQI as a trace, not a badge: the per-sample sub-index for PM2.5 and
+  // PM10, worse of the two at each timestamp, leads the grid
+  const by = new Map<number, number>();
+  (['pm2p5', 'pm10p0'] as const).forEach((k) => {
+    series.find((s) => s.key === k)?.points.forEach((p) => {
+      by.set(p.t, Math.max(by.get(p.t) ?? 0, aqiFrom(p.v, AQI_BP[k])));
+    });
   });
-  const aqi = aqis.length ? Math.max(...aqis) : null;
-  const cat = aqi != null ? aqiCat(aqi) : null;
+  const aqiPts: EggPoint[] = [...by.entries()].map(([t, v]) => ({ t, v })).sort((a, b) => a.t - b.t);
   return (
     <div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 22px' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: live ? '#4fae7d' : '#7c909b' }}>
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: live ? '#4fae7d' : '#5f7078' }} />
-          {live ? 'Live' : 'Offline'} updated {fmtTime(newest)}
-        </div>
-        {aqi != null && cat && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c4d1d9' }}>
-            <span style={{ width: 8, height: 8, borderRadius: 999, background: cat[2] }} />
-            US AQI {aqi} {cat[1]}
-          </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(320px,100%),1fr))', gap: 18 }}>
+        {aqiPts.length > 1 && (
+          <SensorChart label="Air Quality Index" unit="" points={aqiPts} y0={0} minSpan={100} rating={(v) => aqiCat(v)} />
         )}
-      </div>
-      {/* the authored sentence: a person explaining the figure, not a widget emitting one */}
-      <p style={{ fontFamily: RESIPLE, fontSize: 13.5, color: '#a9bcc6', lineHeight: 1.65, maxWidth: 640, margin: '18px 0 0' }}>
-        Each panel is drawn to its own physical scale. Particulate matter is plotted against
-        the EPA health scale, so a clean day sits low in the panel rather than filling it.
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(400px,100%),1fr))', gap: 18, marginTop: 20 }}>
         {charts.map((c) => {
           let points = c.scale ? c.series!.points.map((p) => ({ t: p.t, v: c.scale!(p.v) })) : c.series!.points;
           let chartUnit = c.unit;
@@ -360,25 +388,89 @@ function EggCharts({ series, unit }: { series: { key: string; points: EggPoint[]
             chartUnit = '°F';
             minSpan = minSpan != null ? (minSpan * 9) / 5 : undefined;
           }
-          return <SensorChart key={c.key} label={c.label} unit={chartUnit} points={points} y0={c.y0} minSpan={minSpan} epaBands={c.epaBands} rating={RATINGS[c.key]} />;
+          return <SensorChart key={c.key} label={c.label} unit={chartUnit} points={points} y0={c.y0} minSpan={minSpan} epaBands={c.epaBands} rating={RATINGS[c.key]} footnote={c.footnote} />;
         })}
       </div>
     </div>
   );
 }
 
+// per-family minimum card sizes, measured in-browser so the first chart fits
+// exactly at open with nothing of the second plate peeking
+const EGG_MIN = { w: 420, h: 309 };
+const SOIL_MIN = { w: 420, h: 309 };
+
 export function SensorsPage() {
   const [state, setState] = useState<
     { status: 'loading' } | { status: 'error' } | { status: 'ready'; raw: Record<string, unknown> }
   >({ status: 'loading' });
   const [unit, setUnit] = useState<'C' | 'F'>('F');
-  const [tab, setTab] = useState<'air' | 'soil'>(() => {
-    try { return sessionStorage.getItem('sensor-tab') === 'soil' ? 'soil' : 'air'; } catch { return 'air'; }
-  });
-  const pickTab = (t: 'air' | 'soil') => {
-    setTab(t);
-    try { sessionStorage.setItem('sensor-tab', t); } catch { /* storage blocked: tab just won't persist */ }
+  // the imagery stage swaps the globe chrome (placard, tip) for its own
+  const [mapActive, setMapActive] = useState(false);
+  // the globe is the whole page; readings exist only for picked sensors.
+  // Several can be open at once - each gets its own floating card.
+  const [open, setOpen] = useState<string[]>([]);
+  const selected = open[open.length - 1] ?? null;
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [isMobile] = useState(() => window.matchMedia('(max-width: 720px)').matches);
+  // the page footer goes away for the whole desktop page - scrolling onto it
+  // from either stage reads as jarring. It lives in App, so it's toggled directly.
+  useEffect(() => {
+    if (isMobile) return;
+    const f = document.getElementById('partners');
+    if (f) f.style.display = 'none';
+    return () => { if (f) f.style.display = ''; };
+  }, [isMobile]);
+  // The globe owns the whole screen from the first frame: the fixed site
+  // header slides away while this page is up, and slides back from the burger
+  // button or whenever the cursor rests at the top edge. It lives in App, so
+  // it's styled directly.
+  const openHeader = useRef<() => void>(() => {});
+  // mirrored into state so the burger can step aside while the header is down
+  const [headerOpen, setHeaderOpen] = useState(false);
+  useEffect(() => {
+    if (isMobile) return;
+    const bar = document.querySelector('.site-header')?.parentElement as HTMLElement | null;
+    if (!bar) return;
+    bar.style.transition = 'transform 300ms ease';
+    bar.style.transform = 'translateY(-100%)';
+    let shown = false;
+    const apply = (want: boolean) => {
+      if (want === shown) return;
+      shown = want;
+      setHeaderOpen(want);
+      bar.style.transform = want ? 'translateY(0)' : 'translateY(-100%)';
+    };
+    openHeader.current = () => apply(true);
+    // only the burger opens the header - the cursor near the top does nothing.
+    // Moving below the open header closes it again.
+    const move = (e: PointerEvent) => { if (shown && e.clientY > bar.offsetHeight + 32) apply(false); };
+    window.addEventListener('pointermove', move);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      bar.style.transition = '';
+      bar.style.transform = '';
+    };
+  }, [isMobile]);
+  // the tip's "Ithaca" link starts the same descent as clicking the globe pin
+  const descendRef = useRef<(() => void) | null>(null);
+  // clicking a dot toggles its card: open sensors close on a re-click
+  const pick = (id: string | null) => {
+    if (id === null) setOpen([]);
+    else setOpen((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
   };
+  const close = (id: string) => setOpen((o) => o.filter((x) => x !== id));
+  // every probe on one globe - the air/soil split is carried by the pin colour
+  // rather than by a tab, so the network reads as one network
+  const sites: GlobeSite[] = useMemo(() => [
+    ...EGGS.map((e) => ({ id: e.id, name: e.name, sub: e.location, tone: AIR, ...dm(e.coords) })),
+    ...SOILMOTES.map((m) => ({ id: m.id, name: m.name, sub: m.location, tone: SOIL, ...dm(m.coords) })),
+    ...RETIRED.map((r) => ({ id: r.name, name: r.name, sub: `Retired ${r.to}`, tone: SOIL, retired: true, labelBelow: r.labelBelow, ...dm(r.coords) })),
+  ], []);
+  // the readings drop in under the globe, so bring them into view on a pick
+  useEffect(() => {
+    if (selected && isMobile) panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selected, isMobile]);
   const [soil, setSoil] = useState<
     { status: 'loading' } | { status: 'error' } | { status: 'ready'; raw: Record<string, unknown> }
   >({ status: 'loading' });
@@ -432,7 +524,12 @@ export function SensorsPage() {
 
   // parsing the multi-MB feed is expensive - do it once per fetch, not per render
   const parsed = useMemo(
-    () => Object.fromEntries(EGGS.map((egg) => [egg.id, state.status === 'ready' ? eggSeries(state.raw[egg.id]) : []])),
+    () => Object.fromEntries(EGGS.map((egg, i) => {
+      const real = state.status === 'ready' ? eggSeries(state.raw[egg.id]) : [];
+      // dev only: a silent egg gets synthetic charts instead of the offline note
+      if (real.length === 0 && state.status !== 'loading' && import.meta.env.DEV) return [egg.id, fakeEggSeries(i)];
+      return [egg.id, real];
+    })),
     [state],
   );
   const soilParsed = useMemo(
@@ -444,91 +541,187 @@ export function SensorsPage() {
     [soilLife],
   );
 
-  return (
-    <section style={SUBPAGE}>
-      <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-      <h2 style={H2}>Active Sensors</h2>
-      {/* the °C/°F toggle overlays the tab row; it only applies to the egg
-          temperature panels, so it rides the air tab */}
-      <div style={{ position: 'relative', marginTop: 32 }}>
-      <div style={{ display: 'inline-flex', border: `2px solid ${tab === 'soil' ? '#c1703f' : '#6d9dcd'}`, overflow: 'hidden' }}>
-        {([['air', 'Air Quality'], ['soil', 'Soil Moisture']] as const).map(([id, label]) => (
-          <button key={id} onClick={() => pickTab(id)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: '10px 22px', fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase', background: tab === id ? (id === 'soil' ? '#c1703f' : '#6d9dcd') : 'transparent', color: tab === id ? '#0e141c' : '#7c909b' }}>
-            {label}
+  // everything one sensor's card (or the mobile panel) needs, from its id -
+  // several cards can be open at once, so this cannot live in page-level consts
+  const deriveFor = (id: string | null) => {
+    const site = sites.find((x) => x.id === id) ?? null;
+    const egg = EGGS.find((e) => e.id === id) ?? null;
+    const mote = SOILMOTES.find((m) => m.id === id) ?? null;
+    const ret = RETIRED.find((r) => r.name === id) ?? null;
+    const accent = ret || mote ? SOIL : AIR;
+    // decimal degrees read cleaner than the field notebook's DDM strings
+    const metaLines = site
+      ? [`${Math.abs(site.lat).toFixed(2)}° ${site.lat >= 0 ? 'N' : 'S'}, ${Math.abs(site.lon).toFixed(2)}° ${site.lon >= 0 ? 'E' : 'W'}`]
+      : [];
+    // last report time + liveness, shown in the card header
+    let status: { live: boolean; t: number } | null = null;
+    if (egg) {
+      const ss = parsed[egg.id];
+      if (ss.length) {
+        const newest = Math.max(...ss.map((s) => s.points[s.points.length - 1].t));
+        status = { live: Date.now() - newest < 45 * 60_000, t: newest };
+      }
+    } else if (mote) {
+      const pts = soilParsed[mote.id].find((x) => x.key === 'soilmoisture')?.points.filter((q) => q.v !== 0);
+      // ~30 min LoRa cadence, 2 missed reports = offline
+      if (pts?.length) status = { live: Date.now() - pts[pts.length - 1].t < 75 * 60_000, t: pts[pts.length - 1].t };
+    }
+    const readings = !site ? null : (
+      <>
+        {egg && (
+          state.status === 'loading' ? <Note>Contacting the egg&hellip;</Note>
+          : parsed[egg.id].length === 0 ? <Note>The sensor feed is offline right now. Check back soon.</Note>
+          : <EggCharts series={parsed[egg.id]} unit={unit} />
+        )}
+        {mote && (() => {
+          // 0% is a non-reading (probe out of soil), not data
+          const pts = soilParsed[mote.id].find((x) => x.key === 'soilmoisture')?.points.filter((q) => q.v !== 0);
+          return soil.status === 'loading' ? <Note>Contacting the probe&hellip;</Note>
+            : !pts || pts.length < 2 ? <Note>The sensor feed is offline right now. Check back soon.</Note>
+            : <SoilCharts points={pts} lifetime={soilLifeParsed[mote.id].find((x) => x.key === 'soilmoisture')?.points.filter((q) => q.v !== 0 && q.t >= mote.lifeFrom)} />;
+        })()}
+        {ret && <SensorChart label="Lifetime" unit="% VWC" points={ARCHIVE[ret.name]} y0={0} minSpan={20} />}
+      </>
+    );
+    const unitToggle = egg ? (
+      <span style={{ display: 'inline-flex', border: `1px solid ${AIR}`, overflow: 'hidden' }}>
+        {(['F', 'C'] as const).map((u) => (
+          <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: '5px 12px', fontFamily: RESIPLE, fontSize: 12.5, letterSpacing: '0.1em', background: unit === u ? AIR : 'transparent', color: unit === u ? '#0e141c' : '#7c909b' }}>
+            &deg;{u}
           </button>
         ))}
-      </div>
-      {tab === 'air' && EGGS.map((egg) => {
-        const series = parsed[egg.id];
-        return (
-          <details key={egg.id} open style={{ background: '#141c26', border: '1px solid #6d9dcd', padding: 'clamp(20px,3.5vw,36px)', marginTop: 24 }}>
-            <summary style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '8px 18px' }}>
-              <span className="chev" style={{ color: '#7c909b', alignSelf: 'center' }} />
-              <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', letterSpacing: '-0.015em', margin: 0 }}>{egg.name}</h3>
-              <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>{egg.location}</span>
-            </summary>
-            <div style={{ marginTop: 28 }}>
-              {state.status === 'loading' ? (
-                <div style={{ fontFamily: RESIPLE, fontSize: 14.5, color: '#7c909b' }}>Contacting the egg…</div>
-              ) : series.length === 0 ? (
-                <div style={{ fontFamily: RESIPLE, fontSize: 14.5, color: '#7c909b' }}>The sensor feed is offline right now. Check back soon.</div>
-              ) : (
-                <EggCharts series={series} unit={unit} />
-              )}
-            </div>
-          </details>
-        );
-      })}
-      {tab === 'soil' && SOILMOTES.map((mote) => {
-        // 0% is a non-reading (probe out of soil), not data
-        const pts = soilParsed[mote.id].find((s) => s.key === 'soilmoisture')?.points.filter((p) => p.v !== 0);
-        return (
-          <details key={mote.id} open style={{ background: '#141c26', border: '1px solid #c1703f', padding: 'clamp(20px,3.5vw,36px)', marginTop: 24 }}>
-            <summary style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '8px 18px' }}>
-              <span className="chev" style={{ color: '#7c909b', alignSelf: 'center' }} />
-              <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', letterSpacing: '-0.015em', margin: 0 }}>{mote.name}</h3>
-              <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>{mote.location} {mote.coords}</span>
-            </summary>
-            <div style={{ marginTop: 28 }}>
-              {soil.status === 'loading' ? (
-                <div style={{ fontFamily: RESIPLE, fontSize: 14.5, color: '#7c909b' }}>Contacting the probe…</div>
-              ) : !pts || pts.length < 2 ? (
-                <div style={{ fontFamily: RESIPLE, fontSize: 14.5, color: '#7c909b' }}>The sensor feed is offline right now. Check back soon.</div>
-              ) : (
-                <SoilCharts points={pts} lifetime={soilLifeParsed[mote.id].find((s) => s.key === 'soilmoisture')?.points.filter((p) => p.v !== 0 && p.t >= mote.lifeFrom)} />
-              )}
-            </div>
-          </details>
-        );
-      })}
-      {tab === 'soil' && (
-        <div style={{ marginTop: 40 }}>
-          <div style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7c909b' }}>Inactive Sensors</div>
-          {RETIRED.map((r) => (
-            <details key={r.name} open style={{ background: '#141c26', border: '1px solid rgba(193,112,63,0.5)', padding: 'clamp(20px,3.5vw,36px)', marginTop: 24 }}>
-              <summary style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '8px 18px' }}>
-                <span className="chev" style={{ color: '#7c909b', alignSelf: 'center' }} />
-                <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', letterSpacing: '-0.015em', margin: 0 }}>{r.name}</h3>
-                <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>Active: ({r.from} - {r.to}) | Coords: {r.coords}</span>
-              </summary>
-              <div style={{ marginTop: 28 }}>
-                <SensorChart label="Lifetime" unit="% VWC" points={ARCHIVE[r.name]} y0={0} minSpan={20} accent="#c1703f" />
+      </span>
+    ) : null;
+    return { site, accent, metaLines, readings, unitToggle, isEgg: !!egg, status };
+  };
+  const { site, accent, metaLines, readings, unitToggle, status } = deriveFor(selected);
+
+  // ---- phones: no globe, so the page keeps its ordinary stacked shape ----
+  if (isMobile) {
+    return (
+      <section style={SUBPAGE}>
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+          <h2 style={H2}>Deployed Sensors</h2>
+          <SensorGlobe sites={sites} selectedIds={open} onSelect={pick} accent={accent} />
+          <div ref={panelRef} style={{ scrollMarginTop: 96 }}>
+            {site && (
+              <div style={{ background: '#141c26', border: `2px solid ${accent}`, padding: 'clamp(20px,3.5vw,36px)', marginTop: 24 }}>
+                <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', margin: 0 }}>{site.name}</h3>
+                <div style={{ fontFamily: RESIPLE, fontSize: 12.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b', marginTop: 8 }}>
+                  {metaLines.join(' ')}{status ? ` | ${status.live ? 'Live' : 'Offline'} ${fmtTime(status.t)}` : ''}
+                </div>
+                <div style={{ marginTop: 18 }}>{unitToggle}</div>
+                <div style={{ marginTop: 24 }}>{readings}</div>
               </div>
-            </details>
-          ))}
+            )}
+          </div>
         </div>
-      )}
-      {tab === 'air' && (
-        <div style={{ position: 'absolute', top: 0, right: 0, display: 'inline-flex', border: '2px solid #6d9dcd', overflow: 'hidden' }}>
+      </section>
+    );
+  }
+
+  // ---- the globe is the page; each open sensor floats its own card ----
+  const cardFor = (id: string) => {
+    const d = deriveFor(id);
+    if (!d.site) return null;
+    return (
+      <div style={{
+        // opens at minimum size (egg cards a bit taller - hand-tuned) and the
+        // corner grip grows it to taste; the drag handle is the header bar
+        width: (d.isEgg ? EGG_MIN : SOIL_MIN).w, height: (d.isEgg ? EGG_MIN : SOIL_MIN).h,
+        maxWidth: 'calc(100vw - 48px)', maxHeight: 'calc(100dvh - 120px)', display: 'flex', flexDirection: 'column',
+        // native corner grip: the card resizes and the charts remeasure to fit
+        resize: 'both', overflow: 'hidden', minWidth: (d.isEgg ? EGG_MIN : SOIL_MIN).w, minHeight: (d.isEgg ? EGG_MIN : SOIL_MIN).h,
+        background: 'rgba(16,23,32,0.95)', backdropFilter: 'blur(14px)',
+        border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 18px 50px rgba(0,0,0,0.6)',
+      }}>
+        <div data-drag-handle style={{ padding: '14px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.09)', cursor: 'grab', userSelect: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 21, letterSpacing: '-0.015em', margin: 0, whiteSpace: 'nowrap' }}>{d.site.name}</h3>
+            {/* coords and last-updated ride the title's row, one line */}
+            <span style={{ fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.06em', color: '#7c909b', whiteSpace: 'nowrap' }}>{d.metaLines[0]}</span>
+            {d.status && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: RESIPLE, fontSize: 11.5, color: d.status.live ? '#4fae7d' : '#7c909b', whiteSpace: 'nowrap' }}>
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: d.status.live ? '#4fae7d' : '#5f7078' }} />
+                {fmtTime(d.status.t)}
+              </span>
+            )}
+            <span style={{ flex: 1 }} />
+            <button onClick={() => close(id)} aria-label="Close readings" style={{ appearance: 'none', cursor: 'pointer', width: 26, height: 26, lineHeight: 1, flexShrink: 0, border: '1px solid rgba(255,255,255,0.22)', background: 'transparent', color: '#a9bcc6', fontFamily: RESIPLE, fontSize: 14 }}>
+              &times;
+            </button>
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>{d.readings}</div>
+      </div>
+    );
+  };
+  const cards = open.flatMap((id) => {
+    const node = cardFor(id);
+    return node ? [{ id, node }] : [];
+  });
+
+  return (
+    <section style={{ position: 'relative', zIndex: 2, background: '#0e141c', height: '100dvh', overflow: 'hidden' }}>
+      {/* the globe has the full screen from the first frame; the header lives
+          above it (z 50) and slides in only when summoned to the top edge */}
+      <div style={{ position: 'absolute', inset: 0 }}>
+        <SensorGlobe sites={sites} selectedIds={open} onSelect={pick} accent={accent} cards={cards} onMapChange={setMapActive} descendRef={descendRef} />
+      </div>
+      {/* one temperature unit for every card, parked beside Back - white on
+          the imagery so it reads at a glance */}
+      {mapActive && (
+        <span style={{
+          position: 'absolute', top: 24, right: 116, zIndex: 4, display: 'inline-flex',
+          border: '1px solid #ffffff', overflow: 'hidden',
+          background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
+        }}>
           {(['F', 'C'] as const).map((u) => (
-            <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: '8px 18px', fontFamily: RESIPLE, fontSize: 14, letterSpacing: '0.1em', background: unit === u ? '#6d9dcd' : 'transparent', color: unit === u ? '#0e141c' : '#7c909b' }}>
-              °{u}
+            <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: '7px 13px', fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', background: unit === u ? '#ffffff' : 'transparent', color: unit === u ? '#0e141c' : '#ffffff' }}>
+              &deg;{u}
             </button>
           ))}
+        </span>
+      )}
+      {/* the burger reopens the site header the page slid away; it steps
+          aside while the header is down */}
+      {!mapActive && !headerOpen && (
+        <button
+          aria-label="Open site menu"
+          onClick={() => openHeader.current()}
+          style={{
+            position: 'absolute', top: 38, left: 48, zIndex: 4,
+            display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4,
+            width: 42, height: 38, appearance: 'none', cursor: 'pointer',
+            border: '1px solid rgba(255,255,255,0.22)', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
+          }}
+        >
+          {[0, 1, 2].map((i) => <span key={i} style={{ width: 16, height: 2, background: '#a9bcc6' }} />)}
+        </button>
+      )}
+      {/* the one instruction the globe needs - on the burger's row, and gone,
+          like the burger, while the header is down */}
+      {!mapActive && !headerOpen && (
+        <div style={{
+          position: 'absolute', top: 38, right: 48, zIndex: 4, maxWidth: 250,
+          padding: '9px 13px', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.22)',
+          fontFamily: RESIPLE, fontSize: 12.5, lineHeight: 1.5, color: '#a9bcc6', textAlign: 'right',
+        }}>
+          Click on{' '}
+          <button
+            onClick={() => descendRef.current?.()}
+            style={{ appearance: 'none', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', letterSpacing: 'inherit', color: '#ffffff', textDecoration: 'underline' }}
+          >
+            Ithaca
+          </button>
+          {' '}for a map view of our deployed sensors
         </div>
       )}
-      </div>
-      </div>
     </section>
   );
+}
+
+function Note({ children }: { children: ReactNode }) {
+  return <div style={{ fontFamily: RESIPLE, fontSize: 14.5, color: '#7c909b' }}>{children}</div>;
 }

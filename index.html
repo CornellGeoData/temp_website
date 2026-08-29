@@ -32,7 +32,10 @@
     </script>
     <link rel="preload" href="/fonts/intan.otf" as="font" crossorigin />
     <link rel="preload" href="/fonts/resiple.ttf" as="font" crossorigin />
-    <link rel="preload" href="/models/earth.glb" as="fetch" crossorigin media="(min-width: 721px)" />
+    <!-- earth texture downloads alongside the three.js chunk instead of after
+         it; crossorigin matches THREE.ImageLoader's anonymous request so the
+         preload actually hits cache -->
+    <link rel="preload" href="/earth-4k.jpg" as="image" crossorigin media="(min-width: 721px)" />
   </head>
   <body>
     <div id="root"></div>
