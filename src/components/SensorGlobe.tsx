@@ -324,7 +324,9 @@ function FloatingCard({ site, index, node, rootRef, mapViewRef }: {
         const br = rootRef.current!.getBoundingClientRect();
         drag.current = { dx: e.clientX - r.left, dy: e.clientY - r.top };
         pos.current = { x: r.left - br.left, y: r.top - br.top };
-        el.setPointerCapture(e.pointerId);
+        // capture keeps the drag alive when the cursor outruns the card; a
+        // pointer already released by now just means an ordinary short click
+        try { el.setPointerCapture(e.pointerId); } catch { /* no active pointer */ }
         el.style.transition = 'none';
       }}
       onPointerMove={(e) => {
