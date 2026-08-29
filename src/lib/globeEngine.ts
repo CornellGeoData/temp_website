@@ -194,7 +194,10 @@ export class GlobeEngine {
   addDrag(): void {
     const el = this.canvasEl;
     el.style.cursor = 'grab';
-    el.style.touchAction = 'pan-y';
+    // the hero globe shares the page with scrollable content, so vertical
+    // swipes stay with the browser; an element-sized globe (sensors stage)
+    // owns a non-scrolling screen and takes every touch itself
+    el.style.touchAction = this.opts.sizeMode === 'window' ? 'pan-y' : 'none';
     let dragging = false, lx = 0, ly = 0, pinchDist = 0;
     const pointers = new Map<number, { x: number; y: number }>();
     const pinchSpan = (): number => {

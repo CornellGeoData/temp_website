@@ -15,7 +15,10 @@ export function PostPage({ post }: { post: Post }) {
     else postChunks.push(typeof para === 'string' ? [para] : para);
   }
   return (
-    <section style={SUBPAGE}>
+    // tighter top padding than the stock subpage on phones: the header is only
+    // ~60px there (and the recruiting banner hides inside posts), so 150px
+    // read as dead space above the All posts link
+    <section style={{ ...SUBPAGE, paddingTop: 'clamp(84px, 19vw, 150px)' }}>
       <div style={{ maxWidth: 920, margin: '0 auto' }}>
         <a href="#/posts" style={{ fontFamily: RESIPLE, fontSize: 14.5 }}>← All posts</a>
         <div style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase', color: post.tagColor, marginTop: 30 }}>{fmtTag(post.tag)}</div>
@@ -66,7 +69,7 @@ export function PostPage({ post }: { post: Post }) {
 
 export function PostsPage({ filter, onFilter }: { filter: 'all' | 'project' | 'blog'; onFilter: (f: 'all' | 'project' | 'blog') => void }) {
   return (
-    <section style={SUBPAGE}>
+    <section style={{ ...SUBPAGE, paddingTop: 'clamp(84px, 19vw, 150px)' }}>
       <div style={{ maxWidth: 940, margin: '0 auto' }}>
         <h2 style={H2}>Posts</h2>
         <div style={{ display: 'flex', gap: 26, marginTop: 36 }}>

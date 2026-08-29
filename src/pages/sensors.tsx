@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
-import { RESIPLE, MANTI, H2, SUBPAGE } from '../styles/theme';
+import type { CSSProperties, ReactNode } from 'react';
+import { RESIPLE, MANTI } from '../styles/theme';
 import SensorGlobe from '../components/SensorGlobe';
 import { AIR, SOIL, type GlobeSite } from '../lib/sites';
 import soilArchive from '../data/soil-archive.json';
@@ -39,14 +39,16 @@ function eggSeries(raw: unknown): { key: string; points: EggPoint[] }[] {
 // leaves the charts invisible while styling them. Synthesize three plausible
 // days (5-min cadence, diurnal cycles, one PM event) so they render.
 // Production builds never call this - see the import.meta.env.DEV gate below.
-function fakeEggSeries(seed: number): { key: string; points: EggPoint[] }[] {
+// days/stepMin let the same generator fake the lifetime feed (a year at 3h)
+function fakeEggSeries(seed: number, days = 3, stepMin = 5): { key: string; points: EggPoint[] }[] {
   const now = Date.now();
-  const N = (3 * 24 * 60) / 5;
+  const N = (days * 24 * 60) / stepMin;
+  const step = stepMin * 60_000;
   const day = (h: number, peak: number) => Math.cos(((h - peak) / 24) * 2 * Math.PI);
   const mk = (f: (h: number, i: number) => number) => {
     const pts: EggPoint[] = [];
     for (let i = 0; i < N; i++) {
-      const t = now - 3 * 86_400_000 + i * 300_000;
+      const t = now - days * 86_400_000 + i * step;
       const d = new Date(t);
       pts.push({ t, v: f(d.getHours() + d.getMinutes() / 60, i) });
     }
@@ -74,18 +76,20 @@ function fakeEggSeries(seed: number): { key: string; points: EggPoint[] }[] {
 // channels rendered in this order when present in the feed. PM readings in clean
 // air sit near 0 and quantize in ~0.1 steps, so those charts pin the baseline to
 // 0 with a minimum y-span instead of autoscaling the noise to full height.
+// the first three, with the AQI trace ahead of them, are the four charts a
+// card shows at its opening size; the rest follow on scroll
 const EGG_CHANNELS: { key: string; label: string; unit: string; scale?: (v: number) => number; y0?: number; minSpan?: number; epaBands?: boolean; footnote?: string }[] = [
   { key: 'pm2p5', label: 'PM2.5', unit: 'µg/m³', epaBands: true, footnote: '* EPA 24-hour safety standard: 9 µg/m³' },
   // pm10p0 isn't charted but still feeds the AQI badge via AQI_BP
-  { key: 'pm1p0', label: 'PM1.0', unit: 'µg/m³', y0: 0, minSpan: 15 },
   // minSpan keeps a channel's ordinary wiggle from autoscaling to full height:
   // the plot only stretches when something actually happens
   { key: 'co2', label: 'CO2', unit: 'ppm', minSpan: 80 },
+  { key: 'temperature', label: 'Temperature', unit: '°C', minSpan: 6 },
+  { key: 'pm1p0', label: 'PM1.0', unit: 'µg/m³', y0: 0, minSpan: 15 },
   { key: 'no2', label: 'NO2', unit: 'ppb', y0: 0, minSpan: 50 },
   { key: 'o3', label: 'O3', unit: 'ppb', y0: 0, minSpan: 50 },
   { key: 'so2', label: 'SO2', unit: 'ppb', y0: 0, minSpan: 30 },
   { key: 'co', label: 'CO', unit: 'ppm', y0: 0, minSpan: 4 },
-  { key: 'temperature', label: 'Temperature', unit: '°C', minSpan: 6 },
   { key: 'humidity', label: 'Humidity', unit: '%', minSpan: 15 },
   // the Egg has reported pressure in Pa on older firmware and hPa on current, so pick
   // by magnitude: station pressure is ~1013 hPa at sea level and never near 10,000.
@@ -127,8 +131,13 @@ const RATINGS: Record<string, Rating> = Object.fromEntries(
 );
 
 const fmtVal = (v: number) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1));
-// "PM2.5" -> PM₂.₅-style label; styled <sub>, since the custom fonts ship no subscript glyphs
-const subPM = (label: string) => (label.startsWith('PM') ? <>PM<sub style={{ fontSize: '0.72em' }}>{label.slice(2)}</sub></> : label);
+// "PM2.5 ..." -> PM₂.₅-style label; styled <sub>, since the custom fonts ship no
+// subscript glyphs. Only the number goes down - a suffix like "Lifetime" stays up.
+const subPM = (label: string) => {
+  if (!label.startsWith('PM')) return label;
+  const [head, ...rest] = label.split(' ');
+  return <>PM<sub style={{ fontSize: '0.72em' }}>{head.slice(2)}</sub>{rest.length > 0 && ` ${rest.join(' ')}`}</>;
+};
 const fmtTime = (t: number) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 const fmtDay = (t: number) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
 const fmtMoYr = (t: number) => new Date(t).toLocaleDateString([], { month: 'short', year: 'numeric' });
@@ -186,6 +195,10 @@ function SensorChart({ label, unit, points, y0, minSpan, epaBands, rating, footn
     lo = dmin - pad;
     hi = dmax + pad;
   }
+  // a trace pinned to the floor (clean-air PM reads a flat 0.00, AQI 0) would
+  // draw exactly on the axis line and vanish - undershoot the domain a hair
+  // so a legitimate zero stays visible just above the baseline
+  if (dmin <= lo) lo -= (hi - lo) * 0.03;
   const t0 = points[0].t;
   const t1 = points[points.length - 1].t;
   const tspan = t1 - t0 || 1;
@@ -294,14 +307,86 @@ function SensorChart({ label, unit, points, y0, minSpan, epaBands, rating, footn
   );
 }
 
+// ---- CSV export: every channel, one row per 5-minute bucket ----
+type Table = { cols: { label: string; unit: string }[]; rows: { t: number; vals: (number | null)[] }[] };
+
+const TABLE_META: Record<string, { label: string; unit: string }> = Object.fromEntries([
+  ...EGG_CHANNELS.map((c) => [c.key, { label: c.label, unit: c.unit }]),
+  ['pm10p0', { label: 'PM10', unit: 'µg/m³' }],
+]);
+const TABLE_ORDER = ['pm2p5', 'co2', 'temperature', 'pm10p0', 'pm1p0', 'no2', 'o3', 'so2', 'co', 'humidity', 'pressure'];
+
+function eggTable(series: { key: string; points: EggPoint[] }[], unit: 'C' | 'F'): Table {
+  const keys = TABLE_ORDER.filter((k) => series.some((s) => s.key === k && s.points.length));
+  const by = new Map<number, (number | null)[]>();
+  keys.forEach((k, ci) => {
+    const scale = EGG_CHANNELS.find((c) => c.key === k)?.scale;
+    for (const p of series.find((s) => s.key === k)!.points) {
+      let v = scale ? scale(p.v) : p.v;
+      if (k === 'temperature' && unit === 'F') v = (v * 9) / 5 + 32;
+      const b = Math.floor(p.t / 300_000) * 300_000;
+      const row = by.get(b) ?? Array<number | null>(keys.length + 1).fill(null);
+      row[ci + 1] = v;
+      by.set(b, row);
+    }
+  });
+  // AQI leads each row: the worse of the two PM sub-indices, same as the chart
+  for (const row of by.values()) {
+    const subs = (['pm2p5', 'pm10p0'] as const).flatMap((k) => {
+      const i = keys.indexOf(k);
+      const v = i >= 0 ? row[i + 1] : null;
+      return v == null ? [] : [aqiFrom(v, AQI_BP[k])];
+    });
+    if (subs.length) row[0] = Math.max(...subs);
+  }
+  return {
+    cols: [{ label: 'AQI', unit: '' }, ...keys.map((k) => (k === 'temperature' ? { label: 'Temperature', unit: unit === 'F' ? '°F' : '°C' } : TABLE_META[k]))],
+    rows: [...by.entries()].sort((a, b) => b[0] - a[0]).map(([t, vals]) => ({ t, vals })),
+  };
+}
+
+function soilTable(points: EggPoint[]): Table {
+  return {
+    cols: [{ label: 'Soil moisture', unit: '% VWC' }],
+    rows: [...points].sort((a, b) => b.t - a.t).map((p) => ({ t: p.t, vals: [p.v] })),
+  };
+}
+
+function downloadCsv(name: string, table: Table) {
+  const head = ['time', ...table.cols.map((c) => (c.unit ? `${c.label} (${c.unit})` : c.label))];
+  const lines = [head.join(','), ...[...table.rows].reverse().map((r) => [new Date(r.t).toISOString(), ...r.vals.map((v) => v ?? '')].join(','))];
+  const a = document.createElement('a');
+  // BOM so Excel reads the unit glyphs as UTF-8
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv' }));
+  a.download = `${name.toLowerCase().replace(/\s+/g, '-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// square utility button, shared by the card headers and the static sheet
+const BTN: CSSProperties = { appearance: 'none', cursor: 'pointer', padding: '5px 11px', border: '1px solid rgba(255,255,255,0.22)', background: 'transparent', color: '#a9bcc6', fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 };
+
 // one Soilmote card: the same soilmoisture trace at three zooms. Month tells the
 // story, day answers "is it wet right now". Battery voltage is in the feed too,
 // deliberately not charted.
 // a chart only needs ~1 point per plot pixel: keep the first sample per bucket,
 // same idiom as eggSeries' 5-minute pass
 function thin(pts: EggPoint[]): EggPoint[] {
+  if (pts.length < 2) return pts;
   const b = (pts[pts.length - 1].t - pts[0].t) / 1500;
   return b <= 300_000 ? pts : pts.filter((p, i, a) => i === 0 || Math.floor(p.t / b) !== Math.floor(a[i - 1].t / b));
+}
+
+// the static sheet's time window, shared by charts, log, and download
+const RANGES = [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['life', 'Lifetime']] as const;
+type Range = (typeof RANGES)[number][0];
+const RANGE_MS: Record<string, number> = { day: 86_400_000, week: 7 * 86_400_000, month: 31 * 86_400_000 };
+// windows anchor to the newest sample, not the wall clock, so an offline
+// sensor's last day still shows something
+function clip(pts: EggPoint[], r: Range): EggPoint[] {
+  if (r === 'life' || pts.length === 0) return pts;
+  const newest = pts[pts.length - 1].t;
+  return pts.filter((p) => p.t >= newest - RANGE_MS[r]);
 }
 
 function SoilCharts({ points, lifetime }: { points: EggPoint[]; lifetime?: EggPoint[] }) {
@@ -362,17 +447,21 @@ const RETIRED = [
   { coords: "N 42\u00b0 26.949' W 76\u00b0 26.816'", name: 'GLITZ', from: '3/18/25', to: '4/13/26' },
 ];
 
-function EggCharts({ series, unit }: { series: { key: string; points: EggPoint[] }[]; unit: 'C' | 'F' }) {
-  const charts = EGG_CHANNELS.map((c) => ({ ...c, series: series.find((s) => s.key === c.key) })).filter((c) => c.series);
-  // US AQI as a trace, not a badge: the per-sample sub-index for PM2.5 and
-  // PM10, worse of the two at each timestamp, leads the grid
+// US AQI as a trace, not a badge: the per-sample sub-index for PM2.5 and
+// PM10, worse of the two at each timestamp
+function aqiSeries(series: { key: string; points: EggPoint[] }[]): EggPoint[] {
   const by = new Map<number, number>();
   (['pm2p5', 'pm10p0'] as const).forEach((k) => {
     series.find((s) => s.key === k)?.points.forEach((p) => {
       by.set(p.t, Math.max(by.get(p.t) ?? 0, aqiFrom(p.v, AQI_BP[k])));
     });
   });
-  const aqiPts: EggPoint[] = [...by.entries()].map(([t, v]) => ({ t, v })).sort((a, b) => a.t - b.t);
+  return [...by.entries()].map(([t, v]) => ({ t, v })).sort((a, b) => a.t - b.t);
+}
+
+function EggCharts({ series, unit }: { series: { key: string; points: EggPoint[] }[]; unit: 'C' | 'F' }) {
+  const charts = EGG_CHANNELS.map((c) => ({ ...c, series: series.find((s) => s.key === c.key) })).filter((c) => c.series);
+  const aqiPts = thin(aqiSeries(series));
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(320px,100%),1fr))', gap: 18 }}>
@@ -388,17 +477,23 @@ function EggCharts({ series, unit }: { series: { key: string; points: EggPoint[]
             chartUnit = '°F';
             minSpan = minSpan != null ? (minSpan * 9) / 5 : undefined;
           }
-          return <SensorChart key={c.key} label={c.label} unit={chartUnit} points={points} y0={c.y0} minSpan={minSpan} epaBands={c.epaBands} rating={RATINGS[c.key]} footnote={c.footnote} />;
+          return <SensorChart key={c.key} label={c.label} unit={chartUnit} points={thin(points)} y0={c.y0} minSpan={minSpan} epaBands={c.epaBands} rating={RATINGS[c.key]} footnote={c.footnote} />;
         })}
       </div>
     </div>
   );
 }
 
-// per-family minimum card sizes, measured in-browser so the first chart fits
-// exactly at open with nothing of the second plate peeking
+// hard minimums the corner grip can shrink to (one chart plate exactly)
 const EGG_MIN = { w: 420, h: 309 };
 const SOIL_MIN = { w: 420, h: 309 };
+// opening sizes: two charts wide, two tall, so a card lands showing four
+// plates - for the eggs that's AQI, PM2.5, CO2, and Temperature
+const EGG_OPEN = { w: 700, h: 580 };
+const SOIL_OPEN = { w: 700, h: 560 };
+// retired probes carry a single lifetime plate - one-chart height, just wide
+// enough that the header row (name, coords, buttons) fits untruncated
+const RET_OPEN = { w: 500, h: 309 };
 
 export function SensorsPage() {
   const [state, setState] = useState<
@@ -410,53 +505,63 @@ export function SensorsPage() {
   // the globe is the whole page; readings exist only for picked sensors.
   // Several can be open at once - each gets its own floating card.
   const [open, setOpen] = useState<string[]>([]);
-  const selected = open[open.length - 1] ?? null;
-  const panelRef = useRef<HTMLDivElement>(null);
+  // phones run the same stages; isMobile only reshapes the chrome (insets,
+  // the bottom-sheet card) rather than forking the page
   const [isMobile] = useState(() => window.matchMedia('(max-width: 720px)').matches);
-  // the page footer goes away for the whole desktop page - scrolling onto it
-  // from either stage reads as jarring. It lives in App, so it's toggled directly.
+  // the page footer goes away for the whole page - scrolling onto it from
+  // either stage reads as jarring. It lives in App, so it's toggled directly.
   useEffect(() => {
-    if (isMobile) return;
     const f = document.getElementById('partners');
     if (f) f.style.display = 'none';
     return () => { if (f) f.style.display = ''; };
-  }, [isMobile]);
-  // The globe owns the whole screen from the first frame: the fixed site
-  // header slides away while this page is up, and slides back from the burger
-  // button or whenever the cursor rests at the top edge. It lives in App, so
-  // it's styled directly.
-  const openHeader = useRef<() => void>(() => {});
-  // mirrored into state so the burger can step aside while the header is down
-  const [headerOpen, setHeaderOpen] = useState(false);
+  }, []);
+  // the static sheet: the pre-globe sensors page (Air Quality / Soil Moisture
+  // tabs, every chart with its lifetime twin) laid over the map stage. Holds
+  // the open tab, or null while closed.
+  const [staticView, setStaticView] = useState<'air' | 'soil' | null>(null);
+  // a card's "Show all data" lands on that sensor's section, not the sheet top
+  const [staticFocus, setStaticFocus] = useState<string | null>(null);
+  const openStatic = (id: string) => {
+    setStaticView(EGGS.some((e) => e.id === id) ? 'air' : 'soil');
+    setStaticFocus(id);
+  };
   useEffect(() => {
-    if (isMobile) return;
+    if (!staticView || !staticFocus) return;
+    document.getElementById(`static-${staticFocus}`)?.scrollIntoView({ block: 'start' });
+    // scrollIntoView also drags the window; the sheet owns the scrolling
+    window.scrollTo(0, 0);
+    setStaticFocus(null);
+  }, [staticView, staticFocus]);
+  // the static sheet's time window
+  const [range, setRange] = useState<Range>('month');
+  // the bottom-left burger's little menu
+  const [menuUp, setMenuUp] = useState(false);
+  // the fixed site header stays for the globe stage and slides away while the
+  // imagery (and the static sheet over it) has the screen. It lives in App,
+  // so it's styled directly.
+  useEffect(() => {
     const bar = document.querySelector('.site-header')?.parentElement as HTMLElement | null;
     if (!bar) return;
     bar.style.transition = 'transform 300ms ease';
-    bar.style.transform = 'translateY(-100%)';
-    let shown = false;
-    const apply = (want: boolean) => {
-      if (want === shown) return;
-      shown = want;
-      setHeaderOpen(want);
-      bar.style.transform = want ? 'translateY(0)' : 'translateY(-100%)';
-    };
-    openHeader.current = () => apply(true);
-    // only the burger opens the header - the cursor near the top does nothing.
-    // Moving below the open header closes it again.
-    const move = (e: PointerEvent) => { if (shown && e.clientY > bar.offsetHeight + 32) apply(false); };
-    window.addEventListener('pointermove', move);
+    bar.style.transform = mapActive || staticView ? 'translateY(-100%)' : 'translateY(0)';
+    // the header's own dropdown menu hangs below it, so sliding the bar away
+    // would leave an open menu floating over the stage - App already closes
+    // it on hashchange, so ring that same bell
+    if (mapActive || staticView) window.dispatchEvent(new Event('hashchange'));
     return () => {
-      window.removeEventListener('pointermove', move);
       bar.style.transition = '';
       bar.style.transform = '';
     };
-  }, [isMobile]);
+  }, [mapActive, staticView]);
   // the tip's "Ithaca" link starts the same descent as clicking the globe pin
   const descendRef = useRef<(() => void) | null>(null);
-  // clicking a dot toggles its card: open sensors close on a re-click
+  // the burger menu's "Sensors" option climbs back out to the globe
+  const ascendRef = useRef<(() => void) | null>(null);
+  // clicking a dot toggles its card: open sensors close on a re-click. On
+  // mobile only one sheet fits, so a pick replaces instead of stacking.
   const pick = (id: string | null) => {
     if (id === null) setOpen([]);
+    else if (isMobile) setOpen((o) => (o.includes(id) ? [] : [id]));
     else setOpen((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
   };
   const close = (id: string) => setOpen((o) => o.filter((x) => x !== id));
@@ -467,10 +572,6 @@ export function SensorsPage() {
     ...SOILMOTES.map((m) => ({ id: m.id, name: m.name, sub: m.location, tone: SOIL, ...dm(m.coords) })),
     ...RETIRED.map((r) => ({ id: r.name, name: r.name, sub: `Retired ${r.to}`, tone: SOIL, retired: true, labelBelow: r.labelBelow, ...dm(r.coords) })),
   ], []);
-  // the readings drop in under the globe, so bring them into view on a pick
-  useEffect(() => {
-    if (selected && isMobile) panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [selected, isMobile]);
   const [soil, setSoil] = useState<
     { status: 'loading' } | { status: 'error' } | { status: 'ready'; raw: Record<string, unknown> }
   >({ status: 'loading' });
@@ -522,6 +623,20 @@ export function SensorsPage() {
     };
   }, []);
 
+  // the eggs' year-deep archive, for the static sheet's lifetime charts -
+  // null until the fetch settles, so dev fakes don't flash ahead of real data
+  const [eggLife, setEggLife] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/aqi-lifetime')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((raw) => alive && setEggLife((raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>))
+      .catch(() => alive && setEggLife({}));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // parsing the multi-MB feed is expensive - do it once per fetch, not per render
   const parsed = useMemo(
     () => Object.fromEntries(EGGS.map((egg, i) => {
@@ -539,6 +654,15 @@ export function SensorsPage() {
   const soilLifeParsed = useMemo(
     () => Object.fromEntries(SOILMOTES.map((m) => [m.id, eggSeries(soilLife[m.id])])),
     [soilLife],
+  );
+  const eggLifeParsed = useMemo(
+    () => Object.fromEntries(EGGS.map((egg, i) => {
+      const real = eggLife ? eggSeries(eggLife[egg.id]) : [];
+      // dev only: a silent lifetime feed gets a synthetic year at 3h cadence
+      if (real.length === 0 && eggLife && import.meta.env.DEV) return [egg.id, fakeEggSeries(i, 365, 180)];
+      return [egg.id, real];
+    })),
+    [eggLife],
   );
 
   // everything one sensor's card (or the mobile panel) needs, from its id -
@@ -583,63 +707,68 @@ export function SensorsPage() {
         {ret && <SensorChart label="Lifetime" unit="% VWC" points={ARCHIVE[ret.name]} y0={0} minSpan={20} />}
       </>
     );
-    const unitToggle = egg ? (
-      <span style={{ display: 'inline-flex', border: `1px solid ${AIR}`, overflow: 'hidden' }}>
-        {(['F', 'C'] as const).map((u) => (
-          <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: '5px 12px', fontFamily: RESIPLE, fontSize: 12.5, letterSpacing: '0.1em', background: unit === u ? AIR : 'transparent', color: unit === u ? '#0e141c' : '#7c909b' }}>
-            &deg;{u}
-          </button>
-        ))}
-      </span>
-    ) : null;
-    return { site, accent, metaLines, readings, unitToggle, isEgg: !!egg, status };
+    return { site, accent, metaLines, readings, isEgg: !!egg, status };
   };
-  const { site, accent, metaLines, readings, unitToggle, status } = deriveFor(selected);
 
-  // ---- phones: no globe, so the page keeps its ordinary stacked shape ----
-  if (isMobile) {
-    return (
-      <section style={SUBPAGE}>
-        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <h2 style={H2}>Deployed Sensors</h2>
-          <SensorGlobe sites={sites} selectedIds={open} onSelect={pick} accent={accent} />
-          <div ref={panelRef} style={{ scrollMarginTop: 96 }}>
-            {site && (
-              <div style={{ background: '#141c26', border: `2px solid ${accent}`, padding: 'clamp(20px,3.5vw,36px)', marginTop: 24 }}>
-                <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', margin: 0 }}>{site.name}</h3>
-                <div style={{ fontFamily: RESIPLE, fontSize: 12.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b', marginTop: 8 }}>
-                  {metaLines.join(' ')}{status ? ` | ${status.live ? 'Live' : 'Offline'} ${fmtTime(status.t)}` : ''}
-                </div>
-                <div style={{ marginTop: 18 }}>{unitToggle}</div>
-                <div style={{ marginTop: 24 }}>{readings}</div>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-    );
-  }
+  // one egg's series at a time window: the day feed is densest for Day, the
+  // year archive for everything longer; each falls back to the other while
+  // its fetch is still out
+  const eggSeriesFor = (id: string, r: Range) => {
+    const life = eggLifeParsed[id];
+    const day = parsed[id];
+    const src = r === 'day' ? (day.length ? day : life) : (life.length ? life : day);
+    return src.map((s) => ({ key: s.key, points: clip(s.points, r) })).filter((s) => s.points.length > 1);
+  };
+  // one mote's soilmoisture points at a window (0% is a non-reading, not data)
+  const soilPtsFor = (id: string, r: Range) => {
+    const mote = SOILMOTES.find((m) => m.id === id)!;
+    const month = soilParsed[id].find((x) => x.key === 'soilmoisture')?.points.filter((q) => q.v !== 0) ?? [];
+    if (r !== 'life') return clip(month, r);
+    const life = soilLifeParsed[id].find((x) => x.key === 'soilmoisture')?.points.filter((q) => q.v !== 0 && q.t >= mote.lifeFrom);
+    return life?.length ? life : month;
+  };
 
-  // ---- the globe is the page; each open sensor floats its own card ----
+  // all of one sensor's data as rows at a window - feeds the log and the CSV
+  const tableFor = (id: string, r: Range): { name: string; table: Table } | null => {
+    const s = sites.find((x) => x.id === id);
+    if (!s) return null;
+    let table: Table | null = null;
+    if (EGGS.some((e) => e.id === id)) table = eggTable(eggSeriesFor(id, r), unit);
+    else if (SOILMOTES.some((m) => m.id === id)) table = soilTable(soilPtsFor(id, r));
+    // retired probes are all history - the window doesn't apply
+    else if (RETIRED.some((x) => x.name === id)) table = soilTable(ARCHIVE[id]);
+    return table ? { name: s.name, table } : null;
+  };
+  const download = (id: string, r: Range = range) => {
+    const t = tableFor(id, r);
+    if (t) downloadCsv(r === 'life' ? t.name : `${t.name} ${r}`, t.table);
+  };
+
+  // ---- the globe is the page; each open sensor floats its own card
+  // (desktop) or docks as a bottom sheet over the imagery (mobile) ----
   const cardFor = (id: string) => {
     const d = deriveFor(id);
     if (!d.site) return null;
+    const size = d.site.retired ? RET_OPEN : d.isEgg ? EGG_OPEN : SOIL_OPEN;
     return (
       <div style={{
-        // opens at minimum size (egg cards a bit taller - hand-tuned) and the
-        // corner grip grows it to taste; the drag handle is the header bar
-        width: (d.isEgg ? EGG_MIN : SOIL_MIN).w, height: (d.isEgg ? EGG_MIN : SOIL_MIN).h,
+        // opens showing four plates (one for retired probes) and the corner
+        // grip resizes it to taste; the drag handle is the header bar
+        width: size.w, height: size.h,
         maxWidth: 'calc(100vw - 48px)', maxHeight: 'calc(100dvh - 120px)', display: 'flex', flexDirection: 'column',
         // native corner grip: the card resizes and the charts remeasure to fit
         resize: 'both', overflow: 'hidden', minWidth: (d.isEgg ? EGG_MIN : SOIL_MIN).w, minHeight: (d.isEgg ? EGG_MIN : SOIL_MIN).h,
+        // the bottom sheet: full width, map still visible above, no grip
+        ...(isMobile && { width: '100%', maxWidth: '100%', minWidth: 0, height: '58dvh', minHeight: 0, resize: 'none' as const }),
         background: 'rgba(16,23,32,0.95)', backdropFilter: 'blur(14px)',
         border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 18px 50px rgba(0,0,0,0.6)',
       }}>
-        <div data-drag-handle style={{ padding: '14px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.09)', cursor: 'grab', userSelect: 'none' }}>
+        <div data-drag-handle style={{ padding: '14px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.09)', cursor: 'grab', userSelect: 'none', touchAction: 'none' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 21, letterSpacing: '-0.015em', margin: 0, whiteSpace: 'nowrap' }}>{d.site.name}</h3>
-            {/* coords and last-updated ride the title's row, one line */}
-            <span style={{ fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.06em', color: '#7c909b', whiteSpace: 'nowrap' }}>{d.metaLines[0]}</span>
+            <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 21, letterSpacing: '-0.015em', margin: 0, whiteSpace: 'nowrap', flexShrink: 0 }}>{d.site.name}</h3>
+            {/* coords and last-updated ride the title's row, one line; on a
+                shrunk card the coords give way first, never the buttons */}
+            <span style={{ fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.06em', color: '#7c909b', whiteSpace: 'nowrap', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.metaLines[0]}</span>
             {d.status && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: RESIPLE, fontSize: 11.5, color: d.status.live ? '#4fae7d' : '#7c909b', whiteSpace: 'nowrap' }}>
                 <span style={{ width: 7, height: 7, borderRadius: 999, background: d.status.live ? '#4fae7d' : '#5f7078' }} />
@@ -647,6 +776,7 @@ export function SensorsPage() {
               </span>
             )}
             <span style={{ flex: 1 }} />
+            <button onClick={() => openStatic(id)} style={BTN}>Show all data</button>
             <button onClick={() => close(id)} aria-label="Close readings" style={{ appearance: 'none', cursor: 'pointer', width: 26, height: 26, lineHeight: 1, flexShrink: 0, border: '1px solid rgba(255,255,255,0.22)', background: 'transparent', color: '#a9bcc6', fontFamily: RESIPLE, fontSize: 14 }}>
               &times;
             </button>
@@ -661,52 +791,62 @@ export function SensorsPage() {
     return node ? [{ id, node }] : [];
   });
 
+  // the burger menu's three destinations, shared by every stage's burger
+  const menuBtns = (line: string) => ([
+    ['Globe View', () => { setStaticView(null); ascendRef.current?.(); }],
+    ['Map View', () => { setStaticView(null); descendRef.current?.(); }],
+    ['Static View', () => setStaticView('air')],
+  ] as const).map(([label, go]) => (
+    <button
+      key={label}
+      // switching stages is a fresh start: any open sensor cards close too
+      onClick={() => { setOpen([]); go(); setMenuUp(false); }}
+      style={{
+        appearance: 'none', cursor: 'pointer', padding: '7px 13px', whiteSpace: 'nowrap',
+        border: `1px solid ${line}`, background: 'rgba(14,20,28,0.88)', backdropFilter: 'blur(6px)',
+        color: '#e6ecf0', fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.12em', textTransform: 'uppercase',
+      }}
+    >
+      {label}
+    </button>
+  ));
+
   return (
     <section style={{ position: 'relative', zIndex: 2, background: '#0e141c', height: '100dvh', overflow: 'hidden' }}>
       {/* the globe has the full screen from the first frame; the header lives
           above it (z 50) and slides in only when summoned to the top edge */}
-      <div style={{ position: 'absolute', inset: 0 }}>
-        <SensorGlobe sites={sites} selectedIds={open} onSelect={pick} accent={accent} cards={cards} onMapChange={setMapActive} descendRef={descendRef} />
+      {/* zIndex 0 makes this a stacking context, so the cards' ever-growing
+          bring-to-front z-indexes can never climb over the page chrome or the
+          tabular sheet */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+        <SensorGlobe sites={sites} selectedIds={open} onSelect={pick} cards={cards} onMapChange={setMapActive} descendRef={descendRef} ascendRef={ascendRef} />
       </div>
       {/* one temperature unit for every card, parked beside Back - white on
           the imagery so it reads at a glance */}
       {mapActive && (
-        <span style={{
-          position: 'absolute', top: 24, right: 116, zIndex: 4, display: 'inline-flex',
-          border: '1px solid #ffffff', overflow: 'hidden',
-          background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
-        }}>
-          {(['F', 'C'] as const).map((u) => (
-            <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: '7px 13px', fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', background: unit === u ? '#ffffff' : 'transparent', color: unit === u ? '#0e141c' : '#ffffff' }}>
-              &deg;{u}
-            </button>
-          ))}
-        </span>
+        <div style={{ position: 'absolute', top: 24, right: 76, zIndex: 4, display: 'flex', gap: 10 }}>
+          <span style={{
+            display: 'inline-flex',
+            border: '1px solid #ffffff', overflow: 'hidden',
+            background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
+          }}>
+            {(['F', 'C'] as const).map((u) => (
+              // height pinned so the bar sits exactly as tall as the burger beside it
+              <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: 28, padding: '0 13px', fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', background: unit === u ? '#ffffff' : 'transparent', color: unit === u ? '#0e141c' : '#ffffff' }}>
+                &deg;{u}
+              </button>
+            ))}
+          </span>
+        </div>
       )}
-      {/* the burger reopens the site header the page slid away; it steps
-          aside while the header is down */}
-      {!mapActive && !headerOpen && (
-        <button
-          aria-label="Open site menu"
-          onClick={() => openHeader.current()}
-          style={{
-            position: 'absolute', top: 38, left: 48, zIndex: 4,
-            display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4,
-            width: 42, height: 38, appearance: 'none', cursor: 'pointer',
-            border: '1px solid rgba(255,255,255,0.22)', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
-          }}
-        >
-          {[0, 1, 2].map((i) => <span key={i} style={{ width: 16, height: 2, background: '#a9bcc6' }} />)}
-        </button>
-      )}
-      {/* the one instruction the globe needs - on the burger's row, and gone,
-          like the burger, while the header is down */}
-      {!mapActive && !headerOpen && (
+      {/* the one instruction the globe needs - parked bottom right, clear of
+          the site header up top */}
+      {!mapActive && (
         <div style={{
-          position: 'absolute', top: 38, right: 48, zIndex: 4, maxWidth: 250,
-          padding: '9px 13px', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
+          position: 'absolute', bottom: 36, right: isMobile ? 16 : 48, zIndex: 4, maxWidth: 190,
+          padding: '7px 11px', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.22)',
-          fontFamily: RESIPLE, fontSize: 12.5, lineHeight: 1.5, color: '#a9bcc6', textAlign: 'right',
+          fontFamily: RESIPLE, fontSize: 11, lineHeight: 1.45, color: '#a9bcc6', textAlign: 'right',
         }}>
           Click on{' '}
           <button
@@ -716,6 +856,156 @@ export function SensorsPage() {
             Ithaca
           </button>
           {' '}for a map view of our deployed sensors
+        </div>
+      )}
+      {/* ---- the static sheet: the pre-globe sensors page over the stage ---- */}
+      {staticView && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: '#0e141c', overflowY: 'auto', padding: '26px clamp(16px,5vw,48px) 96px' }}>
+          <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+            {/* one line, even at 390px: unlabeled dropdowns (Month / °F speak
+                for themselves), compact tabs, burger on the right */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: isMobile ? 6 : 12 }}>
+              <div style={{ display: 'inline-flex', border: `2px solid ${staticView === 'soil' ? SOIL : AIR}`, overflow: 'hidden' }}>
+                {([['air', 'Air Quality'], ['soil', 'Soil Moisture']] as const).map(([id, label]) => (
+                  <button key={id} onClick={() => setStaticView(id)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: isMobile ? '9px 9px' : '10px 14px', fontFamily: RESIPLE, fontSize: isMobile ? 11 : 13, letterSpacing: isMobile ? '0.06em' : '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', background: staticView === id ? (id === 'soil' ? SOIL : AIR) : 'transparent', color: staticView === id ? '#0e141c' : '#7c909b' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <span style={{ flex: 1 }} />
+              {/* the °C/°F pick leads the cluster; it only applies to the egg
+                  panels, so it rides the air tab */}
+              {staticView === 'air' && (
+                <select
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value as 'C' | 'F')}
+                  style={{ appearance: 'none', cursor: 'pointer', height: 33, padding: isMobile ? '0 8px' : '0 14px', border: '1px solid rgba(255,255,255,0.22)', background: '#141c26', color: '#e6ecf0', fontFamily: RESIPLE, fontSize: 12.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                >
+                  {(['F', 'C'] as const).map((u) => <option key={u} value={u}>&deg;{u}</option>)}
+                </select>
+              )}
+              {/* the window every chart and Download share */}
+              <select
+                value={range}
+                onChange={(e) => setRange(e.target.value as Range)}
+                style={{ appearance: 'none', cursor: 'pointer', height: 33, padding: isMobile ? '0 8px' : '0 14px', border: '1px solid rgba(255,255,255,0.22)', background: '#141c26', color: '#e6ecf0', fontFamily: RESIPLE, fontSize: 12.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+              >
+                {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              {/* the sheet's burger rides the row's right end, styled and
+                  sized like the dropdowns beside it */}
+              <span style={{ position: 'relative' }}>
+                <button
+                  aria-label="Menu"
+                  aria-expanded={menuUp}
+                  onClick={() => setMenuUp((m) => !m)}
+                  style={{
+                    display: 'inline-flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 3,
+                    height: 33, padding: isMobile ? '0 10px' : '0 14px', appearance: 'none', cursor: 'pointer',
+                    border: '1px solid rgba(255,255,255,0.22)', background: '#141c26',
+                  }}
+                >
+                  {[0, 1, 2].map((i) => <span key={i} style={{ width: 14, height: 2, background: '#e6ecf0' }} />)}
+                </button>
+                {menuUp && (
+                  // inset a hair from the burger's edge, so the boxes never
+                  // trace the sensor cards' right border underneath
+                  <span style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 10, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+                    {menuBtns('rgba(255,255,255,0.22)')}
+                  </span>
+                )}
+              </span>
+            </div>
+            {staticView === 'air' && EGGS.map((egg, i) => (
+              <details key={egg.id} id={`static-${egg.id}`} open style={{ background: '#141c26', border: `1px solid ${AIR}`, padding: 'clamp(20px,3.5vw,36px)', marginTop: 24, scrollMarginTop: 16 }}>
+                <summary style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '8px 18px' }}>
+                  <span className="chev" style={{ color: '#7c909b', alignSelf: 'center' }} />
+                  <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', letterSpacing: '-0.015em', margin: 0 }}>{egg.name}</h3>
+                  <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>{egg.location}</span>
+                  <span style={{ flex: 1 }} />
+                  {/* the burger dropdown falls over the first card's corner -
+                      that one steps aside while the menu is open */}
+                  <button onClick={(e) => { e.preventDefault(); download(egg.id); }} style={{ ...BTN, visibility: menuUp && i === 0 ? 'hidden' : 'visible' }}>Download</button>
+                </summary>
+                <div style={{ marginTop: 28 }}>
+                  {(() => {
+                    const series = eggSeriesFor(egg.id, range);
+                    return state.status === 'loading' ? <Note>Contacting the egg&hellip;</Note>
+                      : series.length === 0 ? <Note>The sensor feed is offline right now. Check back soon.</Note>
+                      : <EggCharts series={series} unit={unit} />;
+                  })()}
+                </div>
+              </details>
+            ))}
+            {staticView === 'soil' && SOILMOTES.map((mote, i) => {
+              const pts = soilPtsFor(mote.id, range);
+              return (
+                <details key={mote.id} id={`static-${mote.id}`} open style={{ background: '#141c26', border: `1px solid ${SOIL}`, padding: 'clamp(20px,3.5vw,36px)', marginTop: 24, scrollMarginTop: 16 }}>
+                  <summary style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '8px 18px' }}>
+                    <span className="chev" style={{ color: '#7c909b', alignSelf: 'center' }} />
+                    <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', letterSpacing: '-0.015em', margin: 0 }}>{mote.name}</h3>
+                    {/* coords are dead weight on a phone-width summary line */}
+                    <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>{isMobile ? mote.location : `${mote.location} ${mote.coords}`}</span>
+                    <span style={{ flex: 1 }} />
+                    <button onClick={(e) => { e.preventDefault(); download(mote.id); }} style={{ ...BTN, visibility: menuUp && i === 0 ? 'hidden' : 'visible' }}>Download</button>
+                  </summary>
+                  <div style={{ marginTop: 28 }}>
+                    {soil.status === 'loading' ? <Note>Contacting the probe&hellip;</Note>
+                      : pts.length < 2 ? <Note>The sensor feed is offline right now. Check back soon.</Note>
+                      : <SensorChart label={RANGES.find(([v]) => v === range)![1]} unit="% VWC" points={thin(pts)} y0={0} minSpan={20} />}
+                  </div>
+                </details>
+              );
+            })}
+            {staticView === 'soil' && (
+              <div style={{ marginTop: 40 }}>
+                <div style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7c909b' }}>Inactive Sensors</div>
+                {RETIRED.map((r) => (
+                  <details key={r.name} id={`static-${r.name}`} open style={{ background: '#141c26', border: '1px solid rgba(193,112,63,0.5)', padding: 'clamp(20px,3.5vw,36px)', marginTop: 24, scrollMarginTop: 16 }}>
+                    <summary style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '8px 18px' }}>
+                      <span className="chev" style={{ color: '#7c909b', alignSelf: 'center' }} />
+                      <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', letterSpacing: '-0.015em', margin: 0 }}>{r.name}</h3>
+                      {/* phones: bare date range, so name + dates + Download share one line */}
+                      <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>{isMobile ? `(${r.from} - ${r.to})` : `Active: (${r.from} - ${r.to}) | Coords: ${r.coords}`}</span>
+                      <span style={{ flex: 1 }} />
+                      <button onClick={(e) => { e.preventDefault(); download(r.name); }} style={BTN}>Download</button>
+                    </summary>
+                    <div style={{ marginTop: 28 }}>
+                      {/* retired probes are all history - the window doesn't apply */}
+                      <SensorChart label="Lifetime" unit="% VWC" points={ARCHIVE[r.name]} y0={0} minSpan={20} />
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {/* the burger IS the way between the globe, the map, and the static
+          sheet. Bottom left on the globe (level with the tip); top right in
+          white on the imagery, sized to the temp bar. The static sheet
+          carries its own copy inside the control row. */}
+      {!staticView && (
+        <div style={{
+          position: 'absolute', zIndex: 40, display: 'flex', flexDirection: 'column', gap: 8,
+          ...(mapActive
+            ? { top: 24, right: 24, alignItems: 'flex-end' }
+            : { bottom: 36, left: isMobile ? 16 : 48, alignItems: 'flex-start' }),
+        }}>
+          {!mapActive && menuUp && menuBtns('rgba(255,255,255,0.22)')}
+          <button
+            aria-label="Menu"
+            aria-expanded={menuUp}
+            onClick={() => setMenuUp((m) => !m)}
+            style={{
+              display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 3,
+              width: mapActive ? 40 : 42, height: mapActive ? 30 : 38, appearance: 'none', cursor: 'pointer', flexShrink: 0,
+              border: `1px solid ${mapActive ? '#ffffff' : 'rgba(255,255,255,0.22)'}`, background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
+            }}
+          >
+            {[0, 1, 2].map((i) => <span key={i} style={{ width: 14, height: 2, background: mapActive ? '#ffffff' : '#a9bcc6' }} />)}
+          </button>
+          {mapActive && menuUp && menuBtns('#ffffff')}
         </div>
       )}
     </section>

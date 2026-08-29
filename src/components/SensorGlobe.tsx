@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type React from 'react';
 import type { ReactNode } from 'react';
 import type { GlobeEngine } from '../lib/globeEngine';
 import type { GlobeSite } from '../lib/sites';
@@ -11,7 +10,10 @@ import { RESIPLE } from '../styles/theme';
 // globe zoom at which those seven probes are separable, so the globe does not
 // try: it carries one marker for the site, and the individual sensors exist
 // only on the imagery below, where they sit at their true coordinates.
-const WORLD_ZOOM = 1.45;
+const WORLD_ZOOM = 1.3;
+// the world view aims at the middle of the lower 48, so the whole US fills
+// the face of the globe and the Ithaca pin reads in context
+const WORLD_AIM = { lat: 37.3, lon: -94 };
 const DIVE_ZOOM = 2.6;
 // the map opens wide and closes to the whole network, so the descent lands on
 // something you can read rather than on one roof
@@ -27,17 +29,10 @@ const FADE_MS = 900;
 const EDGE = 16;
 const CARD_TOP = 74;
 
-const CTRL: React.CSSProperties = {
-  appearance: 'none', cursor: 'pointer', padding: '7px 15px',
-  border: '1px solid #ffffff', background: 'rgba(14,20,28,0.72)',
-  color: '#ffffff', fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase',
-};
-
-export default function SensorGlobe({ sites, selectedIds, onSelect, accent, cards, onMapChange, descendRef }: {
+export default function SensorGlobe({ sites, selectedIds, onSelect, cards, onMapChange, descendRef, ascendRef }: {
   sites: GlobeSite[];
   selectedIds: string[];
   onSelect: (id: string | null) => void;
-  accent: string;
   // one floating readings card per open sensor
   cards?: { id: string; node: ReactNode }[];
   // fires when the view crosses between globe and imagery, so the page can
@@ -45,6 +40,8 @@ export default function SensorGlobe({ sites, selectedIds, onSelect, accent, card
   onMapChange?: (onMap: boolean) => void;
   // filled with the descent trigger, so page chrome (the tip's link) can start it
   descendRef?: { current: (() => void) | null };
+  // filled with the ascent trigger, so page chrome (the burger menu) can climb out
+  ascendRef?: { current: (() => void) | null };
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<HTMLButtonElement>(null);
@@ -52,7 +49,8 @@ export default function SensorGlobe({ sites, selectedIds, onSelect, accent, card
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<GlobeEngine | null>(null);
   const [noWebGL, setNoWebGL] = useState(false);
-  // phones get the plain list; three.js is never downloaded there
+  // phones run the same three stages; the only fork is the readings card,
+  // which docks as a bottom sheet instead of floating
   const [isMobile] = useState(() => window.matchMedia('(max-width: 720px)').matches);
 
   const [onMap, setOnMap] = useState(false);
@@ -75,7 +73,6 @@ export default function SensorGlobe({ sites, selectedIds, onSelect, accent, card
   sitesRef.current = sites;
 
   useEffect(() => {
-    if (isMobile) return;
     let cancelled = false;
     const canvasEl = canvasRef.current!;
 
@@ -95,8 +92,8 @@ export default function SensorGlobe({ sites, selectedIds, onSelect, accent, card
     import('../lib/globeEngine').then((mod) => {
       if (cancelled) return;
       const e = new mod.GlobeEngine({
-        aimLat: centreRef.current.lat,
-        aimLon: centreRef.current.lon,
+        aimLat: WORLD_AIM.lat,
+        aimLon: WORLD_AIM.lon,
         yaw: 0, pitch: 0, zoom: WORLD_ZOOM,
         minZoom: 0.7, maxZoom: DIVE_ZOOM,
         userZoom: false, // rotation only - the descent's flyTo is the sole zoom
@@ -112,15 +109,17 @@ export default function SensorGlobe({ sites, selectedIds, onSelect, accent, card
       engineRef.current?.unmount();
       engineRef.current = null;
     };
-  }, [isMobile]);
+  }, []);
 
   // ---- the fall, and the climb back out ----
+  // a phone's narrow frame needs a wider landing to fit the whole network
+  const netZ = isMobile ? MAP_NET_Z - 1 : MAP_NET_Z;
   const pauseTimer = useRef(0);
   const descend = () => {
     setMapTarget({
       lat: LAND.lat,
       lon: LAND.lon,
-      zoom: MAP_NET_Z,
+      zoom: netZ,
       nonce: ++nonce.current,
     });
     // keep driving the globe in under the cross-fade so the motion never stalls
@@ -136,58 +135,30 @@ export default function SensorGlobe({ sites, selectedIds, onSelect, accent, card
     // a quick round trip must not leave the pending pause to freeze the ascent
     window.clearTimeout(pauseTimer.current);
     engineRef.current?.resume();
-    engineRef.current?.flyTo(centre.lat, centre.lon, WORLD_ZOOM, FADE_MS);
+    engineRef.current?.flyTo(WORLD_AIM.lat, WORLD_AIM.lon, WORLD_ZOOM, FADE_MS);
     setOnMap(false);
   };
+  if (ascendRef) ascendRef.current = ascend;
 
   // WebGL blocked: there is no globe to fall from, so open on the imagery
   useEffect(() => {
     if (!noWebGL) return;
-    setMapTarget({ lat: LAND.lat, lon: LAND.lon, zoom: MAP_NET_Z, nonce: ++nonce.current });
+    setMapTarget({ lat: LAND.lat, lon: LAND.lon, zoom: netZ, nonce: ++nonce.current });
     setOnMap(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noWebGL, centre.lat, centre.lon]);
 
 
-  const pinDot = (tone: string, on: boolean, retired?: boolean) => (
-    <span style={{
-      width: on ? 13 : 9, height: on ? 13 : 9, borderRadius: 999, flexShrink: 0,
-      background: retired ? 'transparent' : tone,
-      border: `2px solid ${tone}`,
-      boxShadow: on ? `0 0 0 5px ${tone}33` : 'none',
-      transition: 'width .18s, height .18s, box-shadow .18s',
-    }} />
-  );
-
-  // no 3D on phones - the page is otherwise nothing but the globe, so without
-  // this there would be no way to reach a sensor at all
-  if (isMobile) {
-    return (
-      <div style={{ marginTop: 24, border: `1px solid ${accent}`, background: '#141c26' }}>
-        {sites.map((s, i) => (
-          <button
-            key={s.id}
-            onClick={() => onSelect(s.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left',
-              appearance: 'none', cursor: 'pointer', padding: '14px 18px',
-              borderTop: i ? '1px solid rgba(255,255,255,0.09)' : 'none', borderLeft: 0, borderRight: 0, borderBottom: 0,
-              background: selectedIds.includes(s.id) ? 'rgba(255,255,255,0.06)' : 'transparent',
-            }}
-          >
-            {pinDot(s.tone, selectedIds.includes(s.id), s.retired)}
-            <span style={{ fontFamily: RESIPLE, fontSize: 14.5, color: '#e6ecf0' }}>{s.name}</span>
-            <span style={{ fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7c909b', marginLeft: 'auto' }}>{s.sub}</span>
-          </button>
-        ))}
-      </div>
-    );
-  }
-
   return (
-    <div ref={rootRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-      {/* ---- globe stage ---- */}
+    // selection-proof: finger drags on the globe/map must never start a text
+    // selection or an iOS long-press callout - that reads as jank, and there
+    // is nothing worth copying on the interactive stages anyway
+    <div ref={rootRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
+      {/* ---- globe stage: starts below the fixed site header, so the earth
+          centres in the visible band instead of tucking under it. The mobile
+          header is much shorter, so the stage rises with it. ---- */}
       <div style={{
-        position: 'absolute', inset: 0,
+        position: 'absolute', left: 0, right: 0, bottom: 0, top: isMobile ? 12 : 48,
         opacity: onMap ? 0 : 1,
         transform: onMap ? 'scale(1.6)' : 'scale(1)',
         transition: `opacity ${FADE_MS}ms ease, transform ${FADE_MS}ms ease`,
@@ -241,16 +212,19 @@ export default function SensorGlobe({ sites, selectedIds, onSelect, accent, card
         />
       </div>
 
-      {/* ---- the readings: one card per open sensor, each auto-parked in a
-          cascade until dragged by its header ---- */}
-      {onMap && cards?.map(({ id, node }, i) => (
-        <FloatingCard key={id} index={i} node={node} site={sites.find((s) => s.id === id)} rootRef={rootRef} mapViewRef={mapViewRef} />
-      ))}
+      {/* ---- the readings: one card per open sensor. Desktop: floating,
+          auto-parked in a cascade until dragged. Mobile: the topmost open
+          sensor docks as a full-width bottom sheet over the imagery. ---- */}
+      {onMap && (isMobile
+        ? (cards?.length ? (
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 12 }}>
+              {cards[cards.length - 1].node}
+            </div>
+          ) : null)
+        : cards?.map(({ id, node }, i) => (
+            <FloatingCard key={id} index={i} node={node} site={sites.find((s) => s.id === id)} rootRef={rootRef} mapViewRef={mapViewRef} />
+          )))}
 
-      {/* ---- the one map control: the way back. Zoom is wheel and pinch. ---- */}
-      {onMap && !noWebGL && (
-        <button onClick={ascend} style={{ ...CTRL, position: 'absolute', top: 24, right: 24, zIndex: 7 }}>Back</button>
-      )}
     </div>
   );
 }

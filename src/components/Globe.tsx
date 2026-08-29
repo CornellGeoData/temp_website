@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 
+// a static starfield for the mobile hero - same colour and sparseness as the
+// Points cloud the 3D engine scatters around the desktop globe
+const STARS = Array.from({ length: 90 }, () => ({
+  x: Math.random() * 100,
+  y: Math.random() * 100,
+  r: Math.random() < 0.25 ? 1.2 : 0.7,
+  o: 0.3 + Math.random() * 0.45,
+}));
+
 export default function Globe() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // WebGL blocked (Firefox resistFingerprinting, blocklisted drivers, etc.):
@@ -28,7 +37,21 @@ export default function Globe() {
   return (
     <section className="globe-sticky" style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
       {!isMobile && !noWebGL && <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />}
-      {noWebGL && <img src="/globe-fallback.webp" alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'right center' }} />}
+      {!isMobile && noWebGL && <img src="/globe-fallback.webp" alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'right center' }} />}
+      {/* phones: no earth, just the engine's starfield - two identical tiles
+          drifting left in a seamless loop, the CSS twin of the 3D scene's
+          slow stars.rotation.y */}
+      {isMobile && (
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '200%', display: 'flex', animation: 'star-drift 90s linear infinite' }}>
+            {[0, 1].map((k) => (
+              <svg key={k} style={{ width: '50%', height: '100%' }}>
+                {STARS.map((s, i) => <circle key={i} cx={`${s.x}%`} cy={`${s.y}%`} r={s.r} fill="#7d99a8" opacity={s.o} />)}
+              </svg>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* HERO */}
       <div className="hero-panel" style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: 'min(560px,50%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 0 0 clamp(24px,5vw,72px)', zIndex: 10, pointerEvents: 'none' }}>

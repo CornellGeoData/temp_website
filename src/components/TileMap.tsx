@@ -13,6 +13,8 @@ const ATTRIBUTION = 'Imagery: Esri, Maxar, Earthstar Geographics';
 
 const MIN_Z = 11;
 const MAX_Z = 20;
+// phones get a compact legend; decided once, like every other mobile fork here
+const SMALL = window.matchMedia('(max-width: 720px)').matches;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const easeInOut = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
@@ -68,30 +70,48 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target.nonce]);
 
-  // ---- panning ----
+  // ---- panning and pinch: one pointer pans, two zoom (globeEngine's idiom) ----
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    let last: { x: number; y: number } | null = null;
+    const pts = new Map<number, { x: number; y: number }>();
+    let pinchSpan = 0;
+    const span = () => {
+      const [a, b] = [...pts.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
     const down = (e: PointerEvent) => {
       if ((e.target as HTMLElement).closest('button')) return;
-      last = { x: e.clientX, y: e.clientY };
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       el.setPointerCapture(e.pointerId);
+      if (pts.size === 2) pinchSpan = span();
       el.style.cursor = 'grabbing';
     };
     const move = (e: PointerEvent) => {
-      if (!last) return;
+      const p = pts.get(e.pointerId);
+      if (!p) return;
       const v = viewRef.current;
+      if (pts.size >= 2) {
+        p.x = e.clientX;
+        p.y = e.clientY;
+        const s = span();
+        // ponytail: centre-anchored pinch; focal-point zoom if it feels drifty
+        setView({ ...v, zoom: clamp(v.zoom + Math.log2(s / (pinchSpan || s)), MIN_Z, MAX_Z) });
+        pinchSpan = s;
+        return;
+      }
       const z = v.zoom;
-      const cx = lonToX(v.lon, z) - (e.clientX - last.x);
-      const cy = latToY(v.lat, z) - (e.clientY - last.y);
-      last = { x: e.clientX, y: e.clientY };
+      const cx = lonToX(v.lon, z) - (e.clientX - p.x);
+      const cy = latToY(v.lat, z) - (e.clientY - p.y);
+      p.x = e.clientX;
+      p.y = e.clientY;
       setView({ lat: yToLat(cy, z), lon: xToLon(cx, z), zoom: z });
     };
     const up = (e: PointerEvent) => {
-      last = null;
+      pts.delete(e.pointerId);
       if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
-      el.style.cursor = 'grab';
+      if (pts.size < 2) pinchSpan = 0;
+      if (pts.size === 0) el.style.cursor = 'grab';
     };
     // unlike the globe, the map owns a plain wheel too: the imagery fills the
     // page, so scrolling reads as zoom, not as leaving
@@ -164,7 +184,9 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
   });
 
   return (
-    <div ref={boxRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', cursor: 'grab', background: '#0e141c', touchAction: 'pan-y' }}>
+    // touchAction none: the map fills a page that never scrolls, so every
+    // finger gesture belongs to pan/pinch, not the browser
+    <div ref={boxRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', cursor: 'grab', background: '#0e141c', touchAction: 'none' }}>
       {/* the parent level sits underneath so a zoom step never shows through to
           nothing while the finer tiles are still arriving */}
       {Z > MIN_Z && layer(Z - 1)}
@@ -212,24 +234,33 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
         );
       })}
 
-      {/* the legend that lets the dots stay wordless */}
+      {/* the legend that lets the dots stay wordless - compact on phones, and
+          raised there so the attribution line below never runs through it */}
       <div style={{
-        position: 'absolute', left: 14, bottom: 12, display: 'flex', gap: 18, alignItems: 'center',
-        padding: '8px 14px', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
+        position: 'absolute', left: 14, bottom: SMALL ? 22 : 12, display: 'flex', flexWrap: 'wrap', gap: SMALL ? '4px 10px' : '6px 18px', alignItems: 'center', maxWidth: 'calc(100% - 28px)',
+        padding: SMALL ? '5px 9px' : '8px 14px', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
         border: '1px solid #ffffff', pointerEvents: 'none',
       }}>
         {([
-          [AIR, 'Air quality'],
-          [SOIL, 'Soil moisture'],
-        ] as const).map(([tone, name]) => (
-          <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#ffffff' }}>
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: tone, border: '1px solid rgba(14,20,28,0.9)' }} />
+          [AIR, 'Air quality', false],
+          [SOIL, 'Soil moisture', false],
+          // hollow ring = retired sensor; white, since the ring shape applies
+          // to any sensor family, not one tone
+          ['#ffffff', 'Inactive', true],
+        ] as const).map(([tone, name, ring]) => (
+          <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: SMALL ? 5 : 7, fontFamily: RESIPLE, fontSize: SMALL ? 9.5 : 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#ffffff' }}>
+            <span style={{
+              width: SMALL ? 8 : 10, height: SMALL ? 8 : 10, borderRadius: 999, boxSizing: 'border-box',
+              background: ring ? 'transparent' : tone,
+              border: ring ? `1.5px solid ${tone}` : '1px solid rgba(14,20,28,0.9)',
+              boxShadow: ring ? 'inset 0 0 0 1px rgba(14,20,28,0.9), 0 0 0 1px rgba(14,20,28,0.9)' : undefined,
+            }} />
             {name}
           </span>
         ))}
       </div>
 
-      <span style={{ position: 'absolute', right: 12, bottom: 12, fontFamily: RESIPLE, fontSize: 10.5, color: 'rgba(230,236,240,0.75)', textShadow: '0 1px 3px rgba(0,0,0,0.9)', pointerEvents: 'none' }}>
+      <span style={{ position: 'absolute', right: SMALL ? 6 : 12, bottom: SMALL ? 4 : 12, fontFamily: RESIPLE, fontSize: SMALL ? 8.5 : 10.5, color: 'rgba(230,236,240,0.75)', textShadow: '0 1px 3px rgba(0,0,0,0.9)', pointerEvents: 'none' }}>
         {ATTRIBUTION}
       </span>
     </div>

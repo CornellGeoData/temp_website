@@ -45,6 +45,40 @@ app.get('/api/aqi', async (_req, res) => {
   }
 });
 
+// the eggs' lifetime archive: same re-keying as /api/aqi, but a year deep and
+// refreshed every 6h - the history only grows at the margin
+let eggLife = { t: 0, p: null };
+app.get('/api/aqi-lifetime', async (_req, res) => {
+  if (!process.env.EGG_SERIAL || !process.env.EGG_API_KEY) {
+    res.status(503).json({ error: 'sensor proxy not configured' });
+    return;
+  }
+  const serials = process.env.EGG_SERIAL.split(',').map((x) => x.trim()).filter(Boolean);
+  if (!eggLife.p || Date.now() - eggLife.t > 6 * 3600_000) {
+    const url =
+      `https://airqualityegg.com/api/v2/messages/device/${serials.join(',')}` +
+      `?dur=P1Y&end-date=${new Date().toISOString()}&reduced=1&grouped=1&apiKey=${process.env.EGG_API_KEY}`;
+    eggLife = {
+      t: Date.now(),
+      p: fetch(url)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`upstream ${r.status}`))))
+        .then((raw) => Object.fromEntries(
+          serials.map((sn, i) => {
+            const k = Object.keys(raw ?? {}).find((x) => x.toLowerCase() === sn.toLowerCase());
+            return [`egg${i + 1}`, k ? raw[k] : null];
+          }),
+        )),
+    };
+    eggLife.p.catch(() => { eggLife.p = null; }); // failed fetch: next request retries
+  }
+  try {
+    res.set('cache-control', 'public, max-age=3600');
+    res.json(await eggLife.p);
+  } catch (err) {
+    res.status(502).json({ error: String(err) });
+  }
+});
+
 // the Soilmote lifetime archive: Zynect takes ~a minute to assemble it, so one
 // upstream fetch is shared by all visitors and refreshed every 6h. Serials must
 // match SOILMOTES in src/pages/sensors.tsx (internal ids, not portal aliases).

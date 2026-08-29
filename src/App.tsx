@@ -55,7 +55,9 @@ export default function App() {
   return (
     <div style={{ position: 'relative', width: '100%', overflowX: 'clip', background: '#0e141c' }}>
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50 }}>
-      <a href="https://docs.google.com/forms/d/e/1FAIpQLSfI87dxinWPeDd9aevwKjwfP0NtWR8uJDhHeD9qjdQPXV9oiA/viewform?usp=dialog" target="_blank" rel="noopener noreferrer" style={{ display: 'block', overflow: 'hidden', textAlign: 'center', maxHeight: pastHero || onSensorsPage ? 0 : 44, padding: pastHero || onSensorsPage ? '0 16px' : '8px 16px', transition: 'max-height 0.3s, padding 0.3s', background: '#086727', color: '#eaf2ee', fontWeight: 700, fontSize: 14, fontFamily: RESIPLE }}>Upperclassmen Recruiting is Open until 9/3! →</a>
+      {/* the banner steps aside past the hero, on the sensors stage, and
+          inside a post - a reader mid-article doesn't need the pitch */}
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSfI87dxinWPeDd9aevwKjwfP0NtWR8uJDhHeD9qjdQPXV9oiA/viewform?usp=dialog" target="_blank" rel="noopener noreferrer" style={{ display: 'block', overflow: 'hidden', textAlign: 'center', maxHeight: pastHero || onSensorsPage || activePost ? 0 : 44, padding: pastHero || onSensorsPage || activePost ? '0 16px' : '8px 16px', transition: 'max-height 0.3s, padding 0.3s', background: '#086727', color: '#eaf2ee', fontWeight: 700, fontSize: 14, fontFamily: RESIPLE }}>Upperclassmen Recruiting is Open until 9/3! →</a>
       <header className="site-header" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 42px', background: 'rgba(14,20,28,0.85)', fontFamily: RESIPLE }}>
         <a href="#top" className="logo-link" style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#e6ecf0', flexShrink: 0 }}>
           <img src="/logo.png" alt="" style={{ width: 78, height: 78, flexShrink: 0 }} />
@@ -67,7 +69,7 @@ export default function App() {
             <a href="#/members" style={{ color: '#a9bcc6' }}>Members</a>
             <a href="#/sponsors" style={{ color: '#a9bcc6' }}>Sponsors</a>
             <a href="#/posts" style={{ color: '#a9bcc6' }}>Posts</a>
-            <a href="#/sensors" style={{ color: '#a9bcc6' }}>Sensors</a>
+            <a href="#/sensors" style={{ color: '#a9bcc6' }}>Data</a>
           </div>
           <a href="#join" className="nav-join-btn" style={{ display: 'inline-block', padding: '9px 20px', borderRadius: 999, background: '#086727', color: '#eaf2ee', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, fontFamily: RESIPLE }}>Join the team</a>
           <button
@@ -87,7 +89,8 @@ export default function App() {
           // hashchange closes the menu on navigation; this onClick covers taps
           // on the link matching the current hash, which fire no hashchange
           <nav className="nav-menu" onClick={() => setMenuOpen(false)} style={{ position: 'absolute', top: '100%', left: 0, right: 0, display: 'none', flexDirection: 'column', background: 'rgba(14,20,28,0.97)', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '6px 24px 18px', fontFamily: RESIPLE }}>
-            {[['#projects', 'Projects'], ['#/members', 'Members'], ['#/sponsors', 'Sponsors'], ['#/posts', 'Posts'], ['#/sensors', 'Sensors'], ['#join', 'Join the team']].map(([href, label]) => (
+            {/* no "Join the team" here - the pill button sits right beside the burger */}
+            {[['#projects', 'Projects'], ['#/members', 'Members'], ['#/sponsors', 'Sponsors'], ['#/posts', 'Posts'], ['#/sensors', 'Data']].map(([href, label]) => (
               <a key={href} href={href} style={{ color: '#e6ecf0', fontSize: 17, fontWeight: 700, padding: '13px 0', borderTop: '1px solid rgba(255,255,255,0.08)' }}>{label}</a>
             ))}
           </nav>

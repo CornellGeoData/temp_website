@@ -62,12 +62,14 @@ function RecruitingTimeline() {
   }, []);
   return (
     <section style={{ position: 'relative', zIndex: 2, background: '#0e141c', padding: '0 clamp(24px,5vw,72px) 130px' }}>
-      <h2 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(42px,6.2vw,80px)', letterSpacing: '-0.03em', lineHeight: 1, margin: 0 }}>Recruiting <span style={{ color: '#4fae7d' }}>Timeline</span></h2>
-      <div style={{ marginTop: 44, padding: '0 4px 42px', overflowX: 'auto' }}>
+      {/* on phones the heading drops lower - clear of the Join section above,
+          tighter against its own timeline below */}
+      <h2 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(42px,6.2vw,80px)', letterSpacing: '-0.03em', lineHeight: 1, margin: mobile ? '40px 0 0' : 0 }}>Recruiting <span style={{ color: '#4fae7d' }}>Timeline</span></h2>
+      <div style={{ marginTop: mobile ? 20 : 44, padding: '0 4px 42px', overflowX: 'auto' }}>
       {RECRUITING_TRACKS.map(({ track, rows }) => {
         const next = rows.flat().find((e) => now <= new Date(e.end).getTime());
         return (
-          <div key={track} style={{ marginTop: 100 }}>
+          <div key={track} style={{ marginTop: mobile ? 44 : 100 }}>
             <div style={{ fontFamily: RESIPLE, fontSize: 19, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#4fae7d' }}>{track}</div>
             {mobile ? (
               // single vertical column on phones instead of the snaking rows
