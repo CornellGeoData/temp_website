@@ -263,7 +263,7 @@ function SensorChart({ label, unit, points, y0, minSpan, epaBands, rating, footn
         ref={wrapRef}
         onPointerMove={onMove}
         onPointerLeave={() => setHover(null)}
-        style={{ position: 'relative', marginTop: 8, touchAction: 'pan-y' }}
+        style={{ position: 'relative', marginTop: 8, touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
       >
         <svg width={w || '100%'} height={CHART_H} style={{ display: 'block' }} aria-label={`${label} history`}>
           {w > 0 && (
@@ -759,7 +759,9 @@ export function SensorsPage() {
         // native corner grip: the card resizes and the charts remeasure to fit
         resize: 'both', overflow: 'hidden', minWidth: (d.isEgg ? EGG_MIN : SOIL_MIN).w, minHeight: (d.isEgg ? EGG_MIN : SOIL_MIN).h,
         // the bottom sheet: full width, map still visible above, no grip
-        ...(isMobile && { width: '100%', maxWidth: '100%', minWidth: 0, height: '58dvh', minHeight: 0, resize: 'none' as const }),
+        // the sheet hugs its content and never takes more than 45dvh, so the
+        // map stays visible above
+        ...(isMobile && { width: '100%', maxWidth: '100%', minWidth: 0, height: 'auto', maxHeight: '45dvh', minHeight: 0, resize: 'none' as const }),
         background: 'rgba(16,23,32,0.95)', backdropFilter: 'blur(14px)',
         border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 18px 50px rgba(0,0,0,0.6)',
       }}>
@@ -866,7 +868,7 @@ export function SensorsPage() {
                 for themselves), compact tabs, burger on the right */}
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: isMobile ? 6 : 12 }}>
               <div style={{ display: 'inline-flex', border: `2px solid ${staticView === 'soil' ? SOIL : AIR}`, overflow: 'hidden' }}>
-                {([['air', 'Air Quality'], ['soil', 'Soil Moisture']] as const).map(([id, label]) => (
+                {([['air', isMobile ? 'AQ Egg' : 'Air Quality'], ['soil', isMobile ? 'Soil' : 'Soil Moisture']] as const).map(([id, label]) => (
                   <button key={id} onClick={() => setStaticView(id)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: isMobile ? '9px 9px' : '10px 14px', fontFamily: RESIPLE, fontSize: isMobile ? 11 : 13, letterSpacing: isMobile ? '0.06em' : '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', background: staticView === id ? (id === 'soil' ? SOIL : AIR) : 'transparent', color: staticView === id ? '#0e141c' : '#7c909b' }}>
                     {label}
                   </button>
