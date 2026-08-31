@@ -73,6 +73,17 @@ img {
   -webkit-user-drag: none;
 }
 
+/* interactive chrome (temp bar, tabs, burgers, dropdowns, card summaries) must
+   never text-select or flash on mobile long-press */
+button,
+summary,
+select {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 a {
   color: #4fae7d;
   text-decoration: none;

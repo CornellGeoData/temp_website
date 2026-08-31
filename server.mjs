@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { gzipSync, gunzipSync } from 'node:zlib';
 import express from 'express';
 
 // serves dist/ and proxies the Air Quality Egg API so the key stays server-side.
@@ -100,6 +101,50 @@ app.get('/api/soil-lifetime', async (_req, res) => {
   }
 });
 
+// the NEWA stations' 5-year hourly archives: ~4MB of JSON each from NRCC, so
+// one shared fetch (all stations in parallel) is cached 6h and stored gzipped -
+// the repetitive rows shrink ~10x, and history only grows at the margin.
+// Ids must match NEWA_STATIONS in src/pages/sensors.tsx.
+const WX_STATIONS = { 'wx-itha': 'ny_itha nwon', 'wx-itbl': 'ny_itbl nwon', 'wx-lans': 'ny_lans nwon', 'wx-aur': 'aur newa', 'wx-int': 'int newa' };
+// station-local (NY) YYYYMMDDHH; the API rejects an edate past the current hour
+const nrccStamp = (t) => new Date(t).toLocaleString('sv', { timeZone: 'America/New_York' }).replace(/\D/g, '').slice(0, 10);
+let wxLife = { t: 0, p: null };
+const fetchWxLife = () => {
+  wxLife = {
+    t: Date.now(),
+    p: Promise.allSettled(Object.entries(WX_STATIONS).map(async ([id, sid]) => {
+      const r = await fetch('https://hrly.nrcc.cornell.edu/stnHrly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid, sdate: nrccStamp(Date.now() - 5 * 365 * 86_400_000), edate: nrccStamp(Date.now()) }),
+      });
+      if (!r.ok) throw new Error(`upstream ${r.status}`);
+      return [id, await r.json()];
+    })).then((results) => {
+      // a silent station just drops out; the client falls back to its month feed
+      const entries = results.filter((x) => x.status === 'fulfilled').map((x) => x.value);
+      if (entries.length === 0) throw new Error('all stations failed');
+      return gzipSync(JSON.stringify(Object.fromEntries(entries)));
+    }),
+  };
+  wxLife.p.catch(() => { wxLife.p = null; }); // failed fetch: next request retries
+};
+fetchWxLife(); // warm at boot so the first Lifetime click doesn't wait ~30s
+app.get('/api/wx-lifetime', async (req, res) => {
+  if (!wxLife.p || Date.now() - wxLife.t > 6 * 3600_000) fetchWxLife();
+  try {
+    const gz = await wxLife.p;
+    res.set('cache-control', 'public, max-age=3600');
+    res.type('json');
+    if (req.acceptsEncodings('gzip')) {
+      res.set('content-encoding', 'gzip');
+      res.send(gz);
+    } else res.send(gunzipSync(gz));
+  } catch (err) {
+    res.status(502).json({ error: String(err) });
+  }
+});
+
 // serve the .br/.gz siblings scripts/compress.mjs emits at build time
 const DIST = path.resolve('dist');
 const COMPRESSIBLE = /\.(?:js|css|html|svg|json|glb)$/;
@@ -112,10 +157,20 @@ app.use((req, res, next) => {
   res.set('content-encoding', enc);
   res.set('vary', 'accept-encoding');
   res.type(path.extname(req.path));
+  // vite hashes /assets/ filenames, so they can be cached forever
+  if (req.path.startsWith('/assets/')) res.set('cache-control', 'public, max-age=31536000, immutable');
   res.sendFile(file);
 });
 
-app.use(express.static('dist', { etag: true }));
+// long cache for static assets; html stays no-cache so deploys show up immediately
+app.use(express.static('dist', {
+  etag: true,
+  maxAge: '30d',
+  setHeaders: (res, p) => {
+    if (p.endsWith('.html')) res.set('cache-control', 'no-cache');
+    else if (p.includes(`${path.sep}assets${path.sep}`)) res.set('cache-control', 'public, max-age=31536000, immutable');
+  },
+}));
 app.use((_req, res) => res.sendFile('index.html', { root: 'dist' }));
 
 app.listen(process.env.PORT ?? 4173);

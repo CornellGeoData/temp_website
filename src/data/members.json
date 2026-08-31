@@ -3,7 +3,7 @@
     "name": "Orion Hoch",
     "subteam": "Leadership",
     "role": "Co-Team Lead",
-    "photo": "/members/orion.jpg",
+    "photo": "/members/orion.webp",
     "email": "ogh6@cornell.edu",
     "major": "Computer Science",
     "linkedin": "https://www.linkedin.com/in/orion-hoch/"
@@ -12,7 +12,7 @@
     "name": "Lenny Metlitsky",
     "subteam": "Leadership",
     "role": "Co-Team Lead",
-    "photo": "/members/lenny.jpg",
+    "photo": "/members/lenny.webp",
     "email": "lm982@cornell.edu",
     "major": "Environmental Engineering",
     "linkedin": "https://www.linkedin.com/in/leonid-metlitsky/"
@@ -21,7 +21,7 @@
     "name": "David Hysell",
     "subteam": "Leadership",
     "role": "Faculty Advisor",
-    "photo": "/members/david.jpg",
+    "photo": "/members/david.webp",
     "email": "dlh37@cornell.edu",
     "major": "Professor, Earth & Atmospheric Sciences",
     "linkedin": "https://scholar.google.com/citations?user=R3IkMVQAAAAJ&hl=en"
@@ -30,7 +30,7 @@
     "name": "Dorin Kim",
     "subteam": "Air",
     "lead": true,
-    "photo": "/members/dorin.jpg",
+    "photo": "/members/dorin.webp",
     "email": "dhk84@cornell.edu",
     "major": "Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/dorin-kim-14337b243/"
@@ -39,7 +39,7 @@
     "name": "Evelyn Keefe",
     "subteam": "Air",
     "lead": true,
-    "photo": "/members/evelyn.jpg",
+    "photo": "/members/evelyn.webp",
     "email": "enk36@cornell.edu",
     "major": "Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/evelynkeefe/"
@@ -47,7 +47,7 @@
   {
     "name": "Alexander Cherny",
     "subteam": "Air",
-    "photo": "/members/alexander.jpg",
+    "photo": "/members/alexander.webp",
     "email": "amc635@cornell.edu",
     "major": "Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/alexander-cherny-wx"
@@ -55,14 +55,14 @@
   {
     "name": "Jihan Bhuiyan",
     "subteam": "Air",
-    "photo": "/members/jihan.jpg",
+    "photo": "/members/jihan.webp",
     "email": "jsb469@cornell.edu",
     "major": "Atmospheric Science"
   },
   {
     "name": "Kieran Mohindra-Green",
     "subteam": "Air",
-    "photo": "/members/kieran.jpeg",
+    "photo": "/members/kieran.webp",
     "email": "kam542@cornell.edu",
     "major": "Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/kieran-mohindra-green-02395b368/"
@@ -70,7 +70,7 @@
   {
     "name": "Simran LaBore",
     "subteam": "Air",
-    "photo": "/members/simran.jpg",
+    "photo": "/members/simran.webp",
     "email": "sl2852@cornell.edu",
     "major": "Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/simran-labore-502799277/"
@@ -78,7 +78,7 @@
   {
     "name": "Lucy Alcoba",
     "subteam": "Air",
-    "photo": "/members/lucy.jpg",
+    "photo": "/members/lucy.webp",
     "email": "lca52@cornell.edu",
     "major": "Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/lucy-alcoba-97b496291"
@@ -87,7 +87,7 @@
     "name": "Duke Gandin",
     "subteam": "Water",
     "lead": true,
-    "photo": "/members/duke.png",
+    "photo": "/members/duke.webp",
     "email": "dag374@cornell.edu",
     "major": "Electrical Engineering",
     "linkedin": "https://www.linkedin.com/in/duke-gandin/"
@@ -95,7 +95,7 @@
   {
     "name": "Hayden Fu",
     "subteam": "Water",
-    "photo": "/members/hayden.png",
+    "photo": "/members/hayden.webp",
     "email": "hmf63@cornell.edu",
     "major": "Computer Science and Statistics",
     "linkedin": "https://www.linkedin.com/in/hayden-fu/"
@@ -103,7 +103,7 @@
   {
     "name": "Sean Welker",
     "subteam": "Water",
-    "photo": "/members/sean.jpeg",
+    "photo": "/members/sean.webp",
     "email": "sw2458@cornell.edu",
     "major": "Environmental Engineering",
     "linkedin": "https://www.linkedin.com/in/sean-welker-32aa10348"
@@ -111,7 +111,7 @@
   {
     "name": "Xingjian (Henry) Mu",
     "subteam": "Water",
-    "photo": "/members/henry.jpeg",
+    "photo": "/members/henry.webp",
     "email": "xm245@cornell.edu",
     "major": "Biology and Society",
     "linkedin": "https://www.linkedin.com/in/henry-mu-4a79b8349/"
@@ -119,7 +119,7 @@
   {
     "name": "Lauren Rakov",
     "subteam": "Water",
-    "photo": "/members/lauren.jpg",
+    "photo": "/members/lauren.webp",
     "email": "lmr285@cornell.edu",
     "major": "Earth and Climate Sciences",
     "linkedin": "https://www.linkedin.com/in/lauren-rakov/"
@@ -128,7 +128,7 @@
     "name": "Aya Saute",
     "subteam": "Rock",
     "lead": true,
-    "photo": "/members/aya.jpg",
+    "photo": "/members/aya.webp",
     "email": "acs373@cornell.edu",
     "major": "Environmental Engineering",
     "linkedin": "https://www.linkedin.com/in/aya-saute-a355a7291/"
@@ -137,7 +137,7 @@
     "name": "Shubha Gautam",
     "subteam": "Rock",
     "lead": true,
-    "photo": "/members/shubha.jpg",
+    "photo": "/members/shubha.webp",
     "email": "sg2563@cornell.edu",
     "major": "Physics and EAS",
     "linkedin": "https://www.linkedin.com/in/shubha-gautam-17ab93190"
@@ -145,7 +145,7 @@
   {
     "name": "Abhinav Jacobs",
     "subteam": "Rock",
-    "photo": "/members/abhinav.jpg",
+    "photo": "/members/abhinav.webp",
     "email": "aej62@cornell.edu",
     "major": "Environmental Engineering",
     "linkedin": "https://www.linkedin.com/in/abhinav-jacobs/"
@@ -153,7 +153,7 @@
   {
     "name": "Janice Yohannan",
     "subteam": "Rock",
-    "photo": "/members/janice.jpg",
+    "photo": "/members/janice.webp",
     "email": "jy975@cornell.edu",
     "major": "Earth and Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/janiceyohannan/"
@@ -161,7 +161,7 @@
   {
     "name": "Nick Spoto",
     "subteam": "Rock",
-    "photo": "/members/nick.jpg",
+    "photo": "/members/nick.webp",
     "email": "njs232@cornell.edu",
     "major": "Computer Science",
     "linkedin": "https://www.linkedin.com/in/nick-spoto-240648244/"
@@ -169,7 +169,7 @@
   {
     "name": "Sameer Nathawat",
     "subteam": "Rock",
-    "photo": "/members/sameer.png",
+    "photo": "/members/sameer.webp",
     "email": "sn729@cornell.edu",
     "major": "Statistics",
     "linkedin": "https://www.linkedin.com/in/sameer-nathawat/"
@@ -177,7 +177,7 @@
   {
     "name": "Sophia Doyle",
     "subteam": "Rock",
-    "photo": "/members/sophia.jpeg",
+    "photo": "/members/sophia.webp",
     "email": "skd86@cornell.edu",
     "major": "Biological Engineering",
     "linkedin": "https://www.linkedin.com/in/sophia-k-doyle"
@@ -186,7 +186,7 @@
     "name": "Rithya Sriram",
     "subteam": "Data",
     "lead": true,
-    "photo": "/members/rithya.jpg",
+    "photo": "/members/rithya.webp",
     "email": "ra596@cornell.edu",
     "major": "Computer Science",
     "linkedin": "https://www.linkedin.com/in/rithya-sriram/"
@@ -194,7 +194,7 @@
   {
     "name": "Ashley Zhao",
     "subteam": "Data",
-    "photo": "/members/ashley.jpg",
+    "photo": "/members/ashley.webp",
     "email": "ajz45@cornell.edu",
     "major": "Computer Science",
     "linkedin": "https://www.linkedin.com/in/ashley-j-zhao/"
@@ -202,7 +202,7 @@
   {
     "name": "Christopher Au",
     "subteam": "Data",
-    "photo": "/members/christopher.jpeg",
+    "photo": "/members/christopher.webp",
     "email": "cta48@cornell.edu",
     "major": "Computer Science and Math",
     "linkedin": "https://www.linkedin.com/in/cta48/"
@@ -210,7 +210,7 @@
   {
     "name": "Adam Zachry",
     "subteam": "Data",
-    "photo": "/members/adam.jpeg",
+    "photo": "/members/adam.webp",
     "email": "mb2926@cornell.edu",
     "major": "Physics & Statistics",
     "linkedin": "https://www.linkedin.com/in/adam-zachry/"
@@ -219,7 +219,7 @@
     "name": "Avinash Aravind",
     "subteam": "Tech",
     "lead": true,
-    "photo": "/members/avinash.png",
+    "photo": "/members/avinash.webp",
     "email": "aa2476@cornell.edu",
     "major": "Atmospheric Science",
     "linkedin": "https://www.linkedin.com/in/avinash-aravind/"
@@ -227,7 +227,7 @@
   {
     "name": "Danna Acosta",
     "subteam": "Tech",
-    "photo": "/members/danna.jpeg",
+    "photo": "/members/danna.webp",
     "email": "dsa72@cornell.edu",
     "major": "Computer Science and ORIE",
     "linkedin": "https://www.linkedin.com/in/dannasacosta/"
@@ -235,7 +235,7 @@
   {
     "name": "Jimmy Chen",
     "subteam": "Tech",
-    "photo": "/members/jimmy.jpg",
+    "photo": "/members/jimmy.webp",
     "email": "jzc32@cornell.edu",
     "major": "Electrical Engineering",
     "linkedin": "https://www.linkedin.com/in/jimmy-chen-43a1ab377/"
@@ -243,7 +243,7 @@
   {
     "name": "Lindsey Paradise",
     "subteam": "Tech",
-    "photo": "/members/lindsey.jpg",
+    "photo": "/members/lindsey.webp",
     "email": "lmp276@cornell.edu",
     "major": "Earth and Climate Sciences",
     "linkedin": "https://www.linkedin.com/in/lindsey-paradise-594148246/"
@@ -251,7 +251,7 @@
   {
     "name": "Suchit Basineni",
     "subteam": "Tech",
-    "photo": "/members/suchit.png",
+    "photo": "/members/suchit.webp",
     "email": "ssb278@cornell.edu",
     "major": "Computer Science",
     "linkedin": "https://www.linkedin.com/in/suchit-basineni/"
@@ -260,7 +260,7 @@
     "name": "Annika Malhotra",
     "subteam": "Business",
     "lead": true,
-    "photo": "/members/annika.jpg",
+    "photo": "/members/annika.webp",
     "email": "am3359@cornell.edu",
     "major": "Computer Science and ORIE",
     "linkedin": "https://www.linkedin.com/in/annika-malhotra/"
@@ -268,8 +268,7 @@
   {
     "name": "Averi Lane",
     "subteam": "Business",
-    "lead": true,
-    "photo": "/members/averi.jpg",
+    "photo": "/members/averi.webp",
     "email": "aml444@cornell.edu",
     "major": "Environmental Engineering",
     "linkedin": "https://www.linkedin.com/in/averi-m-lane/"
@@ -277,7 +276,7 @@
   {
     "name": "Joshua Kennedy",
     "subteam": "Business",
-    "photo": "/members/joshua.jpg",
+    "photo": "/members/joshua.webp",
     "email": "jak563@cornell.edu",
     "major": "Environment and Sustainability",
     "linkedin": "https://www.linkedin.com/in/joshua-kennedy-120046330/"
@@ -285,7 +284,7 @@
   {
     "name": "Reece Shiraishi",
     "subteam": "Business",
-    "photo": "/members/reece.jpg",
+    "photo": "/members/reece.webp",
     "email": "rcs374@cornell.edu",
     "major": "Electrical Engineering",
     "linkedin": "https://www.linkedin.com/in/reece-shiraishi-86087b2b2/"

@@ -403,7 +403,7 @@ export class GlobeEngine {
     // south-up (a glTF-era convention), so it loads with flipY off.
     const white = new THREE.Color(0xffffff);
     const dark = new THREE.Color(0x16222e);
-    const tex = new THREE.TextureLoader().load('/earth-4k.jpg', () => {
+    const tex = new THREE.TextureLoader().load('/earth-4k.webp', () => {
       // upload now, off-screen, so the first frame that shows the earth does
       // not also pay for 4k mipmap generation - that stutter reads as a flash
       this.renderer?.initTexture(tex);

@@ -11,7 +11,7 @@ import { SPONSOR_PACKET_PDF, TIERS, ALUMNI } from '../data/content';
 // updating the packet:
 //   pdftoppm -jpeg -jpegopt quality=78 -scale-to-x 1400 -scale-to-y -1 public/sponsorship/packet.pdf public/sponsorship/page
 const PACKET_PAGE_COUNT = 12;
-const packetPageSrc = (n: number) => `/sponsorship/page-${String(n + 1).padStart(2, '0')}.jpg`;
+const packetPageSrc = (n: number) => `/sponsorship/page-${String(n + 1).padStart(2, '0')}.webp`;
 
 function PacketViewer() {
   const [page, setPage] = useState(0);

@@ -663,10 +663,15 @@ export function SensorsPage() {
   // the static sheet: the pre-globe sensors page (Air Quality / Soil Moisture
   // tabs, every chart with its lifetime twin) laid over the map stage. Holds
   // the open tab, or null while closed.
-  const [staticView, setStaticView] = useState<'air' | 'soil' | 'weather' | null>(null);
+  // deep links: #/sensors/<map|air|soil|weather|forecast> restores a stage on
+  // load, and the reflect effect below keeps the hash current for sharing
+  const initialStage = window.location.hash.split('/')[2];
+  const [staticView, setStaticView] = useState<'air' | 'soil' | 'weather' | null>(
+    initialStage === 'air' || initialStage === 'soil' || initialStage === 'weather' ? initialStage : null,
+  );
   // the forecast stage: regional weather maps over a light basemap, fed by the
   // lab's render pipeline. A full-screen sheet like staticView, not a globe mode.
-  const [forecastView, setForecastView] = useState(false);
+  const [forecastView, setForecastView] = useState(initialStage === 'forecast');
   // a card's "Show all data" lands on that sensor's section, not the sheet top
   const [staticFocus, setStaticFocus] = useState<string | null>(null);
   const openStatic = (id: string) => {
@@ -705,6 +710,17 @@ export function SensorsPage() {
   const descendRef = useRef<(() => void) | null>(null);
   // the burger menu's "Sensors" option climbs back out to the globe
   const ascendRef = useRef<(() => void) | null>(null);
+  // a direct #/sensors/map load plays the descent once the globe has mounted
+  const wantMap = useRef(initialStage === 'map');
+  useEffect(() => { if (wantMap.current) descendRef.current?.(); }, []);
+  // reflect the current stage into the hash so refresh and copied links land
+  // back on it; replaceState adds no history entries, so Back still leaves
+  useEffect(() => {
+    if (mapActive) wantMap.current = false;
+    if (wantMap.current) return; // mid-descent: don't rewrite the hash back to the globe
+    const stage = staticView ?? (forecastView ? 'forecast' : mapActive ? 'map' : null);
+    history.replaceState(null, '', stage ? `#/sensors/${stage}` : '#/sensors');
+  }, [mapActive, staticView, forecastView]);
   // clicking a dot toggles its card: open sensors close on a re-click. On
   // mobile only one sheet fits, so a pick replaces instead of stacking.
   const pick = (id: string | null) => {
@@ -763,13 +779,22 @@ export function SensorsPage() {
   }, []);
   // Lifetime is a set 5 years of hourly rows - ~4MB per station uncompressed,
   // so the archive fetch waits until someone actually picks Lifetime on the
-  // weather tab, then runs once; charts show the month feed until it lands
+  // weather tab, then runs once; charts show the month feed until it lands.
+  // The server proxy keeps the bundle warm and gzipped (~2MB for all five
+  // stations vs ~20MB straight from NRCC), so it lands in seconds.
   const [wxLife, setWxLife] = useState<Record<string, { key: string; points: EggPoint[] }[]>>({});
   const wxLifeStarted = useRef(false);
   useEffect(() => {
     if (staticView !== 'weather' || range !== 'life' || wxLifeStarted.current) return;
     wxLifeStarted.current = true;
-    loadWx(stamp(Date.now() - 5 * 365 * 86_400_000), setWxLife, { current: true });
+    const alive = { current: true };
+    fetch('/api/wx-lifetime')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((raw) => alive.current && setWxLife(Object.fromEntries(
+        NEWA_STATIONS.map((st) => [st.id, newaSeries((raw as Record<string, unknown>)[st.id])]),
+      )))
+      // no proxy running (plain vite dev): pull each station straight from NRCC
+      .catch(() => loadWx(stamp(Date.now() - 5 * 365 * 86_400_000), setWxLife, alive));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staticView, range]);
 
@@ -1203,7 +1228,13 @@ export function SensorsPage() {
                   <div style={{ marginTop: 28 }}>
                     {!(st.id in wx) ? <Note>Contacting the station&hellip;</Note>
                       : series.length === 0 ? <Note>The station feed is offline right now. Check back soon.</Note>
-                      : <WeatherCharts series={series} unit={unit} />}
+                      : (
+                        <>
+                          {/* the month feed stands in while the archive is out - say so */}
+                          {range === 'life' && !(st.id in wxLife) && <Note>Loading the 5-year archive&hellip; showing the last month until it lands.</Note>}
+                          <WeatherCharts series={series} unit={unit} />
+                        </>
+                      )}
                   </div>
                 </details>
               );

@@ -26,7 +26,8 @@ export default function App() {
 
   const onPostsPage = route === '#/posts';
   const onSponsorsPage = route === '#/sponsors';
-  const onSensorsPage = route === '#/sensors';
+  // '#/sensors/...' deep-links a stage inside the page (map, air, forecast...)
+  const onSensorsPage = route.startsWith('#/sensors');
   const onMembersPage = route === '#/members';
   const legalPage = LEGAL_PAGES[route];
   const activePost = POSTS.find((p) => route === `#/posts/${p.slug}`);
@@ -60,7 +61,7 @@ export default function App() {
       <a href="https://docs.google.com/forms/d/e/1FAIpQLSfI87dxinWPeDd9aevwKjwfP0NtWR8uJDhHeD9qjdQPXV9oiA/viewform?usp=dialog" target="_blank" rel="noopener noreferrer" style={{ display: 'block', overflow: 'hidden', textAlign: 'center', maxHeight: pastHero || onSensorsPage || activePost ? 0 : 44, padding: pastHero || onSensorsPage || activePost ? '0 16px' : '8px 16px', transition: 'max-height 0.3s, padding 0.3s', background: '#086727', color: '#eaf2ee', fontWeight: 700, fontSize: 14, fontFamily: RESIPLE }}>Upperclassmen Recruiting is Open until 9/3! →</a>
       <header className="site-header" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 42px', background: 'rgba(14,20,28,0.85)', fontFamily: RESIPLE }}>
         <a href="#top" className="logo-link" style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#e6ecf0', flexShrink: 0 }}>
-          <img src="/logo.png" alt="" style={{ width: 78, height: 78, flexShrink: 0 }} />
+          <img src="/logo.webp" alt="" style={{ width: 78, height: 78, flexShrink: 0 }} />
           <span className="logo-text" style={{ fontFamily: "'Intan',sans-serif", fontWeight: 700, fontSize: 33, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>GeoData</span>
         </a>
         <nav className="site-nav" style={{ display: 'flex', alignItems: 'center', gap: 30, fontSize: 17.5, flexShrink: 0 }}>
