@@ -349,10 +349,11 @@ export class GlobeEngine {
     // framings) falls into real shadow, so the desert reads as night side
     // instead of a yellow glow on the edge. No rim light - anything grazing
     // that limb relights the desert.
-    scene.add(new THREE.AmbientLight(0x8fa6c4, 0.28));
-    // z kept small: a large z fronts the light from the camera and floodlights
-    // the whole disc, leaving no terminator at all
-    const key = new THREE.DirectionalLight(0xffffff, 1.35); key.position.set(-4, 1.5, 1.2); scene.add(key);
+    scene.add(new THREE.AmbientLight(0x8fa6c4, 0.34));
+    // z moderate: enough toward the camera that the disc reads lit with a soft
+    // terminator on the right limb; push z much past this and it floodlights,
+    // leaving no terminator at all
+    const key = new THREE.DirectionalLight(0xffffff, 1.35); key.position.set(-4, 1.5, 2.6); scene.add(key);
 
     const group = new THREE.Group();
     this.group = group;

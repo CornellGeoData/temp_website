@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { RESIPLE, MANTI } from '../styles/theme';
 import SensorGlobe from '../components/SensorGlobe';
-import { AIR, SOIL, type GlobeSite } from '../lib/sites';
+import ForecastView from '../components/ForecastView';
+import { AIR, SOIL, WEATHER, type GlobeSite } from '../lib/sites';
 import soilArchive from '../data/soil-archive.json';
 
 // ACTIVE SENSORS - the /api/aqi proxy (server.mjs) passes through the Egg API's
@@ -447,6 +448,147 @@ const RETIRED = [
   { coords: "N 42\u00b0 26.949' W 76\u00b0 26.816'", name: 'GLITZ', from: '3/18/25', to: '4/13/26' },
 ];
 
+// Regional NEWA weather stations around Cayuga Lake, served by the Northeast
+// Regional Climate Center (hrly.nrcc.cornell.edu - keyless, CORS-open, hourly
+// with a 1-2 h lag). sid is the NRCC "<station> <network>" pair; lat/lon come
+// from their station list, already decimal.
+const NEWA_STATIONS = [
+  { id: 'wx-itha', sid: 'ny_itha nwon', name: 'Cornell Orchards (NEWA)', location: 'Ithaca', lat: 42.443624, lon: -76.463274 },
+  { id: 'wx-itbl', sid: 'ny_itbl nwon', name: 'Bluegrass Lane (NEWA)', location: 'Ithaca', lat: 42.461956, lon: -76.463891 },
+  { id: 'wx-lans', sid: 'ny_lans nwon', name: 'Lansing (NEWA)', location: 'Cornell Orchards', lat: 42.572295, lon: -76.595127 },
+  { id: 'wx-aur', sid: 'aur newa', name: 'Aurora (NEWA)', location: 'East shore, Cayuga Lake', lat: 42.73367, lon: -76.65383 },
+  { id: 'wx-int', sid: 'int newa', name: 'Interlaken (NEWA)', location: 'Airy Acres', lat: 42.636288, lon: -76.725271 },
+];
+
+// charted in this order when the station reports them. Leaf wetness rides the
+// feed but isn't charted, same call as battery voltage.
+// temp/dwpt arrive in °F and stay stored that way - the °C pick converts at
+// render, mirroring the eggs (stored °C, converted to °F).
+const NEWA_CHANNELS: { key: string; label: string; unit: string; y0?: number; minSpan?: number }[] = [
+  { key: 'temp', label: 'Temperature', unit: '°F', minSpan: 10 },
+  { key: 'dwpt', label: 'Dew point', unit: '°F', minSpan: 10 },
+  { key: 'rhum', label: 'Humidity', unit: '%', minSpan: 15 },
+  { key: 'prcp', label: 'Precipitation', unit: 'in/hr', y0: 0, minSpan: 0.25 },
+  { key: 'wspd', label: 'Wind speed', unit: 'mph', y0: 0, minSpan: 12 },
+  // wdir draws as a wind rose, not a line; the entry also names its CSV column
+  { key: 'wdir', label: 'Wind direction', unit: 'deg' },
+  { key: 'srad', label: 'Solar radiation', unit: 'W/m²', y0: 0, minSpan: 400 },
+];
+
+// {hrlyFields, hrlyData} columns -> one series per channel. Everything is
+// strings; "M" and "NaN" (missing) drop out through the finite filter.
+function newaSeries(raw: unknown): { key: string; points: EggPoint[] }[] {
+  const r = raw as { hrlyFields?: string[]; hrlyData?: string[][] } | null;
+  if (!Array.isArray(r?.hrlyFields) || !Array.isArray(r?.hrlyData)) return [];
+  const di = r.hrlyFields.indexOf('date');
+  return r.hrlyFields.flatMap((f, ci) => {
+    if (f === 'date' || f === 'flags') return [];
+    const points = r.hrlyData!
+      // NEWA reports solar radiation in langleys per hour; 1 ly/hr = 11.6 W/m²
+      .map((row) => ({ t: Date.parse(row[di]), v: Number(row[ci]) * (f === 'srad' ? 11.6 : 1) }))
+      .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v));
+    return points.length > 1 ? [{ key: f, points }] : [];
+  });
+}
+
+// wind rose: the window's hours binned into 16 compass sectors by the heading
+// the wind blew FROM (meteorological convention), petal length proportional to
+// the busiest sector. Cardinal labels, intercardinal ticks.
+const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+
+function WindRose({ points }: { points: EggPoint[] }) {
+  const SECT = 16;
+  const [hover, setHover] = useState<number | null>(null);
+  const bins = Array<number>(SECT).fill(0);
+  for (const p of points) bins[Math.round(p.v / (360 / SECT)) % SECT]++;
+  const max = Math.max(...bins, 1);
+  const W = 220;
+  const cx = W / 2;
+  const cy = CHART_H / 2;
+  const R = CHART_H / 2 - 18;
+  const pt = (a: number, r: number) => [cx + r * Math.sin(a), cy - r * Math.cos(a)] as const;
+  // one sector's wedge path at radius r; trim < 1 stops the petal a hair short
+  // of the sector edge, so neighbors read apart
+  const wedge = (i: number, r: number, trim = 1) => {
+    const a = (i * 2 * Math.PI) / SECT;
+    const half = (Math.PI / SECT) * trim;
+    const [x0, y0] = pt(a - half, r);
+    const [x1, y1] = pt(a + half, r);
+    return `M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z`;
+  };
+  return (
+    <div style={{ background: PLATE.paper, border: '1px solid rgba(255,255,255,0.08)', padding: '16px 18px 12px' }}>
+      <div style={{ fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: PLATE.ink, whiteSpace: 'nowrap' }}>
+        Wind rose <span style={{ textTransform: 'none', letterSpacing: 0, color: PLATE.muted }}>
+          {hover != null ? `${COMPASS[hover]}: ${Math.round((bins[hover] / points.length) * 100)}% of hours` : '(share of hours by heading)'}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${CHART_H}`} width="100%" height={CHART_H} style={{ display: 'block', marginTop: 8 }} aria-label="Wind rose" onPointerLeave={() => setHover(null)}>
+        {[1 / 3, 2 / 3, 1].map((f) => (
+          <circle key={f} cx={cx} cy={cy} r={R * f} fill="none" stroke={PLATE.grid} strokeWidth={1} />
+        ))}
+        {Array.from({ length: 8 }, (_, i) => {
+          const a = (i * Math.PI) / 4;
+          const [x0, y0] = pt(a, R);
+          const [x1, y1] = pt(a, R + 4);
+          return <line key={i} x1={x0} y1={y0} x2={x1} y2={y1} stroke={PLATE.rule} strokeWidth={i % 2 ? 0.6 : 1} />;
+        })}
+        {(['N', 'E', 'S', 'W'] as const).map((c, i) => {
+          const [x, y] = pt((i * Math.PI) / 2, R + 11);
+          return <text key={c} x={x} y={y} fontSize={10.5} fill={PLATE.muted} textAnchor="middle" dominantBaseline="middle" fontFamily="Resiple, sans-serif">{c}</text>;
+        })}
+        {bins.map((b, i) => b > 0 && (
+          <path key={i} d={wedge(i, (b / max) * R, 0.82)} fill={PLATE.ink} opacity={hover == null ? 0.9 : hover === i ? 1 : 0.45} style={{ transition: 'opacity .15s ease' }} />
+        ))}
+        {/* full-radius invisible sectors catch the pointer, so a short petal
+            is as hoverable as a long one */}
+        {bins.map((_, i) => (
+          <path key={`hit-${i}`} d={wedge(i, R)} fill="transparent" onPointerEnter={() => setHover(i)} />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+const isF = (key: string) => key === 'temp' || key === 'dwpt';
+const toC = (pts: EggPoint[]) => pts.map((p) => ({ t: p.t, v: ((p.v - 32) * 5) / 9 }));
+
+function WeatherCharts({ series, unit }: { series: { key: string; points: EggPoint[] }[]; unit: 'C' | 'F' }) {
+  const charts = NEWA_CHANNELS.map((c) => ({ ...c, s: series.find((x) => x.key === c.key) })).filter((c) => c.s);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(320px,100%),1fr))', gap: 18 }}>
+      {charts.map((c) => c.key === 'wdir' ? <WindRose key={c.key} points={c.s!.points} /> : (
+        <SensorChart
+          key={c.key}
+          label={c.label}
+          unit={isF(c.key) ? `°${unit}` : c.unit}
+          points={thin(isF(c.key) && unit === 'C' ? toC(c.s!.points) : c.s!.points)}
+          y0={c.y0}
+          minSpan={isF(c.key) && unit === 'C' ? (c.minSpan! * 5) / 9 : c.minSpan}
+        />
+      ))}
+    </div>
+  );
+}
+
+// one weather station's channels as rows, one per hour - feeds the CSV
+function newaTable(series: { key: string; points: EggPoint[] }[], unit: 'C' | 'F'): Table {
+  const cols = NEWA_CHANNELS.filter((c) => series.some((s) => s.key === c.key && s.points.length));
+  const by = new Map<number, (number | null)[]>();
+  cols.forEach((c, ci) => {
+    const pts = series.find((s) => s.key === c.key)!.points;
+    for (const p of isF(c.key) && unit === 'C' ? toC(pts) : pts) {
+      const row = by.get(p.t) ?? Array<number | null>(cols.length).fill(null);
+      row[ci] = p.v;
+      by.set(p.t, row);
+    }
+  });
+  return {
+    cols: cols.map((c) => ({ label: c.label, unit: isF(c.key) ? `°${unit}` : c.unit })),
+    rows: [...by.entries()].sort((a, b) => b[0] - a[0]).map(([t, vals]) => ({ t, vals })),
+  };
+}
+
 // US AQI as a trace, not a badge: the per-sample sub-index for PM2.5 and
 // PM10, worse of the two at each timestamp
 function aqiSeries(series: { key: string; points: EggPoint[] }[]): EggPoint[] {
@@ -495,6 +637,9 @@ const SOIL_OPEN = { w: 700, h: 560 };
 // enough that the header row (name, coords, buttons) fits untruncated
 const RET_OPEN = { w: 500, h: 309 };
 
+// the static sheet's tabs wear their family's tone
+const TAB_TONE = { air: AIR, soil: SOIL, weather: WEATHER } as const;
+
 export function SensorsPage() {
   const [state, setState] = useState<
     { status: 'loading' } | { status: 'error' } | { status: 'ready'; raw: Record<string, unknown> }
@@ -518,11 +663,14 @@ export function SensorsPage() {
   // the static sheet: the pre-globe sensors page (Air Quality / Soil Moisture
   // tabs, every chart with its lifetime twin) laid over the map stage. Holds
   // the open tab, or null while closed.
-  const [staticView, setStaticView] = useState<'air' | 'soil' | null>(null);
+  const [staticView, setStaticView] = useState<'air' | 'soil' | 'weather' | null>(null);
+  // the forecast stage: regional weather maps over a light basemap, fed by the
+  // lab's render pipeline. A full-screen sheet like staticView, not a globe mode.
+  const [forecastView, setForecastView] = useState(false);
   // a card's "Show all data" lands on that sensor's section, not the sheet top
   const [staticFocus, setStaticFocus] = useState<string | null>(null);
   const openStatic = (id: string) => {
-    setStaticView(EGGS.some((e) => e.id === id) ? 'air' : 'soil');
+    setStaticView(EGGS.some((e) => e.id === id) ? 'air' : NEWA_STATIONS.some((s) => s.id === id) ? 'weather' : 'soil');
     setStaticFocus(id);
   };
   useEffect(() => {
@@ -543,16 +691,16 @@ export function SensorsPage() {
     const bar = document.querySelector('.site-header')?.parentElement as HTMLElement | null;
     if (!bar) return;
     bar.style.transition = 'transform 300ms ease';
-    bar.style.transform = mapActive || staticView ? 'translateY(-100%)' : 'translateY(0)';
+    bar.style.transform = mapActive || staticView || forecastView ? 'translateY(-100%)' : 'translateY(0)';
     // the header's own dropdown menu hangs below it, so sliding the bar away
     // would leave an open menu floating over the stage - App already closes
     // it on hashchange, so ring that same bell
-    if (mapActive || staticView) window.dispatchEvent(new Event('hashchange'));
+    if (mapActive || staticView || forecastView) window.dispatchEvent(new Event('hashchange'));
     return () => {
       bar.style.transition = '';
       bar.style.transform = '';
     };
-  }, [mapActive, staticView]);
+  }, [mapActive, staticView, forecastView]);
   // the tip's "Ithaca" link starts the same descent as clicking the globe pin
   const descendRef = useRef<(() => void) | null>(null);
   // the burger menu's "Sensors" option climbs back out to the globe
@@ -571,6 +719,7 @@ export function SensorsPage() {
     ...EGGS.map((e) => ({ id: e.id, name: e.name, sub: e.location, tone: AIR, ...dm(e.coords) })),
     ...SOILMOTES.map((m) => ({ id: m.id, name: m.name, sub: m.location, tone: SOIL, ...dm(m.coords) })),
     ...RETIRED.map((r) => ({ id: r.name, name: r.name, sub: `Retired ${r.to}`, tone: SOIL, retired: true, labelBelow: r.labelBelow, ...dm(r.coords) })),
+    ...NEWA_STATIONS.map((s) => ({ id: s.id, name: s.name, sub: s.location, tone: WEATHER, lat: s.lat, lon: s.lon })),
   ], []);
   const [soil, setSoil] = useState<
     { status: 'loading' } | { status: 'error' } | { status: 'ready'; raw: Record<string, unknown> }
@@ -589,6 +738,40 @@ export function SensorsPage() {
       alive = false;
     };
   }, []);
+
+  // NEWA stations, one POST each - absent id = still fetching, [] = offline.
+  // station-local (NY) YYYYMMDDHH; the API rejects an edate past the current hour
+  const stamp = (t: number) => new Date(t).toLocaleString('sv', { timeZone: 'America/New_York' }).replace(/\D/g, '').slice(0, 10);
+  const loadWx = (sdate: string, set: React.Dispatch<React.SetStateAction<Record<string, { key: string; points: EggPoint[] }[]>>>, aliveRef: { current: boolean }) => NEWA_STATIONS.forEach((st) => {
+    fetch('https://hrly.nrcc.cornell.edu/stnHrly', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sid: st.sid, sdate, edate: stamp(Date.now()) }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((raw) => aliveRef.current && set((m) => ({ ...m, [st.id]: newaSeries(raw) })))
+      .catch(() => aliveRef.current && set((m) => ({ ...m, [st.id]: [] })));
+  });
+  const [wx, setWx] = useState<Record<string, { key: string; points: EggPoint[] }[]>>({});
+  useEffect(() => {
+    const alive = { current: true };
+    loadWx(stamp(Date.now() - 31 * 86_400_000), setWx, alive);
+    return () => {
+      alive.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Lifetime is a set 5 years of hourly rows - ~4MB per station uncompressed,
+  // so the archive fetch waits until someone actually picks Lifetime on the
+  // weather tab, then runs once; charts show the month feed until it lands
+  const [wxLife, setWxLife] = useState<Record<string, { key: string; points: EggPoint[] }[]>>({});
+  const wxLifeStarted = useRef(false);
+  useEffect(() => {
+    if (staticView !== 'weather' || range !== 'life' || wxLifeStarted.current) return;
+    wxLifeStarted.current = true;
+    loadWx(stamp(Date.now() - 5 * 365 * 86_400_000), setWxLife, { current: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staticView, range]);
 
   const [soilLife, setSoilLife] = useState<Record<string, unknown>>({});
   useEffect(() => {
@@ -672,7 +855,8 @@ export function SensorsPage() {
     const egg = EGGS.find((e) => e.id === id) ?? null;
     const mote = SOILMOTES.find((m) => m.id === id) ?? null;
     const ret = RETIRED.find((r) => r.name === id) ?? null;
-    const accent = ret || mote ? SOIL : AIR;
+    const wxSt = NEWA_STATIONS.find((s) => s.id === id) ?? null;
+    const accent = ret || mote ? SOIL : wxSt ? WEATHER : AIR;
     // decimal degrees read cleaner than the field notebook's DDM strings
     const metaLines = site
       ? [`${Math.abs(site.lat).toFixed(2)}° ${site.lat >= 0 ? 'N' : 'S'}, ${Math.abs(site.lon).toFixed(2)}° ${site.lon >= 0 ? 'E' : 'W'}`]
@@ -689,6 +873,13 @@ export function SensorsPage() {
       const pts = soilParsed[mote.id].find((x) => x.key === 'soilmoisture')?.points.filter((q) => q.v !== 0);
       // ~30 min LoRa cadence, 2 missed reports = offline
       if (pts?.length) status = { live: Date.now() - pts[pts.length - 1].t < 75 * 60_000, t: pts[pts.length - 1].t };
+    } else if (wxSt) {
+      const ss = wx[wxSt.id];
+      if (ss?.length) {
+        const newest = Math.max(...ss.map((s) => s.points[s.points.length - 1].t));
+        // NRCC serves hourly with a 1-2 h lag, so 3 h of silence = offline
+        status = { live: Date.now() - newest < 3 * 3600_000, t: newest };
+      }
     }
     const readings = !site ? null : (
       <>
@@ -705,6 +896,14 @@ export function SensorsPage() {
             : <SoilCharts points={pts} lifetime={soilLifeParsed[mote.id].find((x) => x.key === 'soilmoisture')?.points.filter((q) => q.v !== 0 && q.t >= mote.lifeFrom)} />;
         })()}
         {ret && <SensorChart label="Lifetime" unit="% VWC" points={ARCHIVE[ret.name]} y0={0} minSpan={20} />}
+        {wxSt && (() => {
+          // the floating card answers "what's it like out": the last day, with
+          // the full month behind Show all data
+          const day = wxSeriesFor(wxSt.id, 'day');
+          return !(wxSt.id in wx) ? <Note>Contacting the station&hellip;</Note>
+            : day.length === 0 ? <Note>The station feed is offline right now. Check back soon.</Note>
+            : <WeatherCharts series={day} unit={unit} />;
+        })()}
       </>
     );
     return { site, accent, metaLines, readings, isEgg: !!egg, status };
@@ -728,6 +927,13 @@ export function SensorsPage() {
     return life?.length ? life : month;
   };
 
+  // one station's channels at a window; Lifetime uses the 5-year archive,
+  // falling back to the month feed while that fetch is still out
+  const wxSeriesFor = (id: string, r: Range) => {
+    const src = r === 'life' && wxLife[id]?.length ? wxLife[id] : wx[id];
+    return (src ?? []).map((s) => ({ key: s.key, points: clip(s.points, r) })).filter((s) => s.points.length > 1);
+  };
+
   // all of one sensor's data as rows at a window - feeds the log and the CSV
   const tableFor = (id: string, r: Range): { name: string; table: Table } | null => {
     const s = sites.find((x) => x.id === id);
@@ -735,6 +941,7 @@ export function SensorsPage() {
     let table: Table | null = null;
     if (EGGS.some((e) => e.id === id)) table = eggTable(eggSeriesFor(id, r), unit);
     else if (SOILMOTES.some((m) => m.id === id)) table = soilTable(soilPtsFor(id, r));
+    else if (NEWA_STATIONS.some((s) => s.id === id)) table = newaTable(wxSeriesFor(id, r), unit);
     // retired probes are all history - the window doesn't apply
     else if (RETIRED.some((x) => x.name === id)) table = soilTable(ARCHIVE[id]);
     return table ? { name: s.name, table } : null;
@@ -793,11 +1000,12 @@ export function SensorsPage() {
     return node ? [{ id, node }] : [];
   });
 
-  // the burger menu's three destinations, shared by every stage's burger
+  // the burger menu's destinations, shared by every stage's burger
   const menuBtns = (line: string) => ([
-    ['Globe View', () => { setStaticView(null); ascendRef.current?.(); }],
-    ['Map View', () => { setStaticView(null); descendRef.current?.(); }],
-    ['Static View', () => setStaticView('air')],
+    ['Globe View', () => { setStaticView(null); setForecastView(false); ascendRef.current?.(); }],
+    ['Map View', () => { setStaticView(null); setForecastView(false); descendRef.current?.(); }],
+    ['Static View', () => { setForecastView(false); setStaticView('air'); }],
+    ['Forecast View', () => { setStaticView(null); setForecastView(true); }],
   ] as const).map(([label, go]) => (
     <button
       key={label}
@@ -826,7 +1034,8 @@ export function SensorsPage() {
       {/* one temperature unit for every card, parked beside Back - white on
           the imagery so it reads at a glance */}
       {mapActive && (
-        <div style={{ position: 'absolute', top: 24, right: 76, zIndex: 4, display: 'flex', gap: 10 }}>
+        // phones: the burger drops to a second row, so the bar takes the corner
+        <div style={{ position: 'absolute', top: 24, right: isMobile ? 24 : 76, zIndex: 4, display: 'flex', gap: 10 }}>
           <span style={{
             display: 'inline-flex',
             border: '1px solid #ffffff', overflow: 'hidden',
@@ -867,17 +1076,17 @@ export function SensorsPage() {
             {/* one line, even at 390px: unlabeled dropdowns (Month / °F speak
                 for themselves), compact tabs, burger on the right */}
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: isMobile ? 6 : 12 }}>
-              <div style={{ display: 'inline-flex', border: `2px solid ${staticView === 'soil' ? SOIL : AIR}`, overflow: 'hidden' }}>
-                {([['air', isMobile ? 'AQ Egg' : 'Air Quality'], ['soil', isMobile ? 'Soil' : 'Soil Moisture']] as const).map(([id, label]) => (
-                  <button key={id} onClick={() => setStaticView(id)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: isMobile ? '9px 9px' : '10px 14px', fontFamily: RESIPLE, fontSize: isMobile ? 11 : 13, letterSpacing: isMobile ? '0.06em' : '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', background: staticView === id ? (id === 'soil' ? SOIL : AIR) : 'transparent', color: staticView === id ? '#0e141c' : '#7c909b' }}>
+              <div style={{ display: 'inline-flex', border: `2px solid ${TAB_TONE[staticView]}`, overflow: 'hidden' }}>
+                {([['air', isMobile ? 'AQ Egg' : 'Air Quality'], ['weather', 'Weather'], ['soil', isMobile ? 'Soil' : 'Soil Moisture']] as const).map(([id, label]) => (
+                  <button key={id} onClick={() => setStaticView(id)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', padding: isMobile ? '9px 9px' : '10px 14px', fontFamily: RESIPLE, fontSize: isMobile ? 11 : 13, letterSpacing: isMobile ? '0.06em' : '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', background: staticView === id ? TAB_TONE[id] : 'transparent', color: staticView === id ? '#0e141c' : '#7c909b' }}>
                     {label}
                   </button>
                 ))}
               </div>
               <span style={{ flex: 1 }} />
-              {/* the °C/°F pick leads the cluster; it only applies to the egg
-                  panels, so it rides the air tab */}
-              {staticView === 'air' && (
+              {/* the °C/°F pick leads the cluster; it applies to the egg and
+                  weather panels, so it sits out the soil tab */}
+              {staticView !== 'soil' && (
                 <select
                   value={unit}
                   onChange={(e) => setUnit(e.target.value as 'C' | 'F')}
@@ -980,18 +1189,64 @@ export function SensorsPage() {
                 ))}
               </div>
             )}
+            {staticView === 'weather' && NEWA_STATIONS.map((st, i) => {
+              const series = wxSeriesFor(st.id, range);
+              return (
+                <details key={st.id} id={`static-${st.id}`} open style={{ background: '#141c26', border: `1px solid ${WEATHER}`, padding: 'clamp(20px,3.5vw,36px)', marginTop: 24, scrollMarginTop: 16 }}>
+                  <summary style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '8px 18px' }}>
+                    <span className="chev" style={{ color: '#7c909b', alignSelf: 'center' }} />
+                    <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', letterSpacing: '-0.015em', margin: 0 }}>{st.name}</h3>
+                    <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>{isMobile ? st.location : `${st.location} ${Math.abs(st.lat).toFixed(2)}° N, ${Math.abs(st.lon).toFixed(2)}° W`}</span>
+                    <span style={{ flex: 1 }} />
+                    <button onClick={(e) => { e.preventDefault(); download(st.id); }} style={{ ...BTN, visibility: menuUp && i === 0 ? 'hidden' : 'visible' }}>Download</button>
+                  </summary>
+                  <div style={{ marginTop: 28 }}>
+                    {!(st.id in wx) ? <Note>Contacting the station&hellip;</Note>
+                      : series.length === 0 ? <Note>The station feed is offline right now. Check back soon.</Note>
+                      : <WeatherCharts series={series} unit={unit} />}
+                  </div>
+                </details>
+              );
+            })}
+            {staticView === 'weather' && (
+              <div style={{ fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.06em', color: '#7c909b', marginTop: 28 }}>
+                Regional stations courtesy of NEWA and the Northeast Regional Climate Center at Cornell. Hourly readings, typically 1-2 hours behind.
+              </div>
+            )}
           </div>
         </div>
       )}
-      {/* the burger IS the way between the globe, the map, and the static
-          sheet. Bottom left on the globe (level with the tip); top right in
-          white on the imagery, sized to the temp bar. The static sheet
-          carries its own copy inside the control row. */}
-      {!staticView && (
+      {/* ---- the forecast stage: light map + weather overlays, own burger ---- */}
+      {forecastView && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 30 }}>
+          <ForecastView />
+          <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+            <button
+              aria-label="Menu"
+              aria-expanded={menuUp}
+              onClick={() => setMenuUp((m) => !m)}
+              style={{
+                display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 3,
+                width: 40, height: 30, appearance: 'none', cursor: 'pointer', flexShrink: 0,
+                border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(14,20,28,0.82)', backdropFilter: 'blur(6px)',
+              }}
+            >
+              {[0, 1, 2].map((i) => <span key={i} style={{ width: 14, height: 2, background: '#e6ecf0' }} />)}
+            </button>
+            {menuUp && menuBtns('rgba(255,255,255,0.25)')}
+          </div>
+        </div>
+      )}
+      {/* the burger IS the way between the globe, the map, the forecast, and
+          the static sheet. Bottom left on the globe (level with the tip); top
+          right in white on the imagery, sized to the temp bar. The forecast
+          stage and static sheet carry their own copies. */}
+      {!staticView && !forecastView && (
         <div style={{
           position: 'absolute', zIndex: 40, display: 'flex', flexDirection: 'column', gap: 8,
           ...(mapActive
-            ? { top: 24, right: 24, alignItems: 'flex-end' }
+            // phones: the temp bar owns the top row, the burger sits under it
+            ? { top: isMobile ? 62 : 24, right: 24, alignItems: 'flex-end' }
             : { bottom: 36, left: isMobile ? 16 : 48, alignItems: 'flex-start' }),
         }}>
           {!mapActive && menuUp && menuBtns('rgba(255,255,255,0.22)')}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { TILE, lonToX, latToY, xToLon, yToLat } from '../lib/mercator';
-import { AIR, SOIL, type GlobeSite } from '../lib/sites';
+import { AIR, SOIL, WEATHER, type GlobeSite } from '../lib/sites';
 import { RESIPLE } from '../styles/theme';
 
 // Esri World Imagery: keyless, and the only free source that actually reaches
@@ -13,6 +13,14 @@ const ATTRIBUTION = 'Imagery: Esri, Maxar, Earthstar Geographics';
 
 const MIN_Z = 11;
 const MAX_Z = 20;
+
+// a georeferenced image (rendered in EPSG:3857) stretched between two mercator
+// corners - how the Forecast View drapes weather fields over the tiles
+export interface Overlay {
+  url: string;
+  bounds: { n: number; s: number; w: number; e: number };
+  opacity: number;
+}
 // phones get a compact legend; decided once, like every other mobile fork here
 const SMALL = window.matchMedia('(max-width: 720px)').matches;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -20,7 +28,7 @@ const easeInOut = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t 
 
 export interface MapTarget { lat: number; lon: number; zoom: number; nonce: number }
 
-export default function TileMap({ sites, selectedIds, onSelect, target, initial, onView, dur = 1400 }: {
+export default function TileMap({ sites, selectedIds, onSelect, target, initial, onView, dur = 1400, tileUrl = TILE_URL, attribution = ATTRIBUTION, minZ = MIN_Z, maxZ = MAX_Z, overlays, onPick, showLegend }: {
   sites: GlobeSite[];
   selectedIds: string[];
   onSelect: (id: string) => void;
@@ -32,6 +40,18 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
   // reports the live view, so an overlay anchored to a pin can follow it
   onView?: (v: { lat: number; lon: number; zoom: number }) => void;
   dur?: number;
+  // Forecast View re-skins the same map: light tiles, regional zoom bounds,
+  // weather overlays. Defaults keep the sensor Map View exactly as it was.
+  tileUrl?: (z: number, x: number, y: number) => string;
+  attribution?: string;
+  minZ?: number;
+  maxZ?: number;
+  overlays?: Overlay[];
+  // a non-drag click on empty map reports its lat/lon - the Forecast View's
+  // point probe. Clicks on pins still go to onSelect, never here.
+  onPick?: (lat: number, lon: number) => void;
+  // the sensor legend only decodes pin families; a probe pin isn't one
+  showLegend?: boolean;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -41,6 +61,12 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
   const [view, setView] = useState(initial ?? { lat: target.lat, lon: target.lon, zoom: target.zoom });
   const viewRef = useRef(view);
   viewRef.current = view;
+  // the pan/pinch handlers are attached once; they read the zoom bounds
+  // through a ref so prop changes never re-wire the listeners
+  const zBounds = useRef({ minZ, maxZ });
+  zBounds.current = { minZ, maxZ };
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
 
   useEffect(() => {
     const el = boxRef.current;
@@ -74,7 +100,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    const pts = new Map<number, { x: number; y: number }>();
+    const pts = new Map<number, { x: number; y: number; sx: number; sy: number }>();
     let pinchSpan = 0;
     const span = () => {
       const [a, b] = [...pts.values()];
@@ -82,7 +108,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
     };
     const down = (e: PointerEvent) => {
       if ((e.target as HTMLElement).closest('button')) return;
-      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
       el.setPointerCapture(e.pointerId);
       if (pts.size === 2) pinchSpan = span();
       el.style.cursor = 'grabbing';
@@ -96,7 +122,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
         p.y = e.clientY;
         const s = span();
         // ponytail: centre-anchored pinch; focal-point zoom if it feels drifty
-        setView({ ...v, zoom: clamp(v.zoom + Math.log2(s / (pinchSpan || s)), MIN_Z, MAX_Z) });
+        setView({ ...v, zoom: clamp(v.zoom + Math.log2(s / (pinchSpan || s)), zBounds.current.minZ, zBounds.current.maxZ) });
         pinchSpan = s;
         return;
       }
@@ -108,6 +134,15 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
       setView({ lat: yToLat(cy, z), lon: xToLon(cx, z), zoom: z });
     };
     const up = (e: PointerEvent) => {
+      const p = pts.get(e.pointerId);
+      // a still finger (or mouse) that was the only pointer = a pick, not a pan
+      if (p && pts.size === 1 && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < 6 && onPickRef.current) {
+        const rect = el.getBoundingClientRect();
+        const v = viewRef.current;
+        const lon = xToLon(lonToX(v.lon, v.zoom) + (e.clientX - rect.left - rect.width / 2), v.zoom);
+        const lat = yToLat(latToY(v.lat, v.zoom) + (e.clientY - rect.top - rect.height / 2), v.zoom);
+        onPickRef.current(lat, lon);
+      }
       pts.delete(e.pointerId);
       if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
       if (pts.size < 2) pinchSpan = 0;
@@ -118,7 +153,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
       const v = viewRef.current;
-      setView({ ...v, zoom: clamp(v.zoom - e.deltaY * 0.01, MIN_Z, MAX_Z) });
+      setView({ ...v, zoom: clamp(v.zoom - e.deltaY * 0.01, zBounds.current.minZ, zBounds.current.maxZ) });
     };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
@@ -138,7 +173,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
 
   const { w, h } = size;
   const midX = w / 2;
-  const Z = clamp(Math.round(view.zoom), MIN_Z, MAX_Z);
+  const Z = clamp(Math.round(view.zoom), minZ, maxZ);
   const scale = 2 ** (view.zoom - Z);
 
   // one integer zoom level's worth of tiles, centred on the view
@@ -155,7 +190,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
       for (let y = Math.floor((cy - halfH) / TILE); y <= Math.floor((cy + halfH) / TILE); y++) {
         if (y < 0 || y >= n) continue;
         const wx = ((x % n) + n) % n;
-        const url = TILE_URL(lvl, wx, y);
+        const url = tileUrl(lvl, wx, y);
         out.push(
           <img
             key={`${lvl}/${wx}/${y}`}
@@ -163,6 +198,9 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
             alt=""
             draggable={false}
             decoding="async"
+            // load can complete before React wires the handler (memory cache,
+            // remounts) - the ref callback catches those, onLoad the rest
+            ref={(el) => { if (el && el.complete && el.naturalWidth > 0) { seen.add(url); el.style.opacity = '1'; } }}
             onLoad={(e) => { seen.add(url); e.currentTarget.style.opacity = '1'; }}
             style={{ position: 'absolute', left: x * TILE - cx, top: y * TILE - cy, width: TILE, height: TILE, userSelect: 'none', opacity: seen.has(url) ? 1 : 0, transition: 'opacity 250ms ease' }}
           />,
@@ -189,8 +227,29 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
     <div ref={boxRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', cursor: 'grab', background: '#0e141c', touchAction: 'none' }}>
       {/* the parent level sits underneath so a zoom step never shows through to
           nothing while the finer tiles are still arriving */}
-      {Z > MIN_Z && layer(Z - 1)}
+      {Z > minZ && layer(Z - 1)}
       {layer(Z)}
+
+      {/* weather overlays ride the same transform as the active tile level, so
+          a frame swap or pan can never shear them off the basemap */}
+      {overlays && overlays.length > 0 && (
+        <div style={{ position: 'absolute', left: midX, top: h / 2, transform: `scale(${scale})`, transformOrigin: '0 0', pointerEvents: 'none' }}>
+          {overlays.map((o) => {
+            const x0 = lonToX(o.bounds.w, Z);
+            const y0 = latToY(o.bounds.n, Z);
+            return (
+              <img
+                key={o.url}
+                src={o.url}
+                alt=""
+                draggable={false}
+                decoding="sync"
+                style={{ position: 'absolute', left: x0 - cx, top: y0 - cy, width: lonToX(o.bounds.e, Z) - x0, height: latToY(o.bounds.s, Z) - y0, opacity: o.opacity, userSelect: 'none' }}
+              />
+            );
+          })}
+        </div>
+      )}
 
       {/* Jefferson-style markers: the color is the information - a solid dot
           per family, hollow for retired, no names printed on the map. The
@@ -211,6 +270,8 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
               appearance: 'none', cursor: 'pointer', background: 'transparent', border: 'none', padding: 0,
             }}
           >
+            {/* invisible 34px halo: finger-sized tap target, visual unchanged */}
+            <span style={{ position: 'absolute', left: -17, top: -17, width: 34, height: 34, borderRadius: 999 }} />
             <span style={{
               position: 'absolute', left: -8, top: -8, width: 16, height: 16, borderRadius: 999,
               background: s.retired ? 'transparent' : s.tone,
@@ -235,8 +296,9 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
       })}
 
       {/* the legend that lets the dots stay wordless - compact on phones, and
-          raised there so the attribution line below never runs through it */}
-      <div style={{
+          raised there so the attribution line below never runs through it.
+          No sites (Forecast View) = nothing to decode = no legend. */}
+      {(showLegend ?? true) && sites.length > 0 && <div style={{
         position: 'absolute', left: 14, bottom: SMALL ? 22 : 12, display: 'flex', flexWrap: 'wrap', gap: SMALL ? '4px 10px' : '6px 18px', alignItems: 'center', maxWidth: 'calc(100% - 28px)',
         padding: SMALL ? '5px 9px' : '8px 14px', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
         border: '1px solid #ffffff', pointerEvents: 'none',
@@ -244,6 +306,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
         {([
           [AIR, 'Air quality', false],
           [SOIL, 'Soil moisture', false],
+          [WEATHER, 'Weather', false],
           // hollow ring = retired sensor; white, since the ring shape applies
           // to any sensor family, not one tone
           ['#ffffff', 'Inactive', true],
@@ -258,10 +321,12 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
             {name}
           </span>
         ))}
-      </div>
+      </div>}
 
-      <span style={{ position: 'absolute', right: SMALL ? 6 : 12, bottom: SMALL ? 4 : 12, fontFamily: RESIPLE, fontSize: SMALL ? 8.5 : 10.5, color: 'rgba(230,236,240,0.75)', textShadow: '0 1px 3px rgba(0,0,0,0.9)', pointerEvents: 'none' }}>
-        {ATTRIBUTION}
+      {/* phones: the bottom edge belongs to the legend and the card sheet, so
+          the credit line rides the top-left instead */}
+      <span style={{ position: 'absolute', ...(SMALL ? { left: 6, top: 4 } : { right: 12, bottom: 12 }), fontFamily: RESIPLE, fontSize: SMALL ? 8.5 : 10.5, color: 'rgba(230,236,240,0.75)', textShadow: '0 1px 3px rgba(0,0,0,0.9)', pointerEvents: 'none' }}>
+        {attribution}
       </span>
     </div>
   );
