@@ -102,11 +102,8 @@ const PANEL: React.CSSProperties = {
 
 const fmtValid = (iso: string) =>
   new Date(iso).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
-// init time in the meteorological convention: the UTC cycle hour
-const fmtInit = (iso: string) => {
-  const d = new Date(iso);
-  return `${String(d.getUTCHours()).padStart(2, '0')}Z ${d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}`;
-};
+// plain local time, matching the timebar (the UTC-cycle "06Z" form confused readers)
+const fmtInit = (iso: string) => fmtValid(iso);
 
 export default function ForecastView() {
   const [manifest, setManifest] = useState<Manifest | 'loading' | 'error'>('loading');
