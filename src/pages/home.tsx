@@ -74,10 +74,10 @@ function RecruitingTimeline() {
             {mobile ? (
               // single vertical column on phones instead of the snaking rows
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 24 }}>
-                {rows.flat().map((e, i) => {
+                {rows.flat().map((e, i, all) => {
                   const past = now > new Date(e.end).getTime();
                   const active = e === next;
-                  const arrowColor = past || active ? '#086727' : '#243140';
+                  const arrowColor = all[i - 1] === next ? '#086727' : '#243140';
                   return (
                     <Fragment key={e.name}>
                       {i > 0 && (
@@ -123,28 +123,17 @@ function RecruitingTimeline() {
                 {events.map((e, i) => {
                   const past = now > new Date(e.end).getTime();
                   const active = e === next;
-                  const arrowColor = past || active ? '#086727' : '#243140';
+                  // only the arrow leaving the current stop is green
+                  const arrowColor = events[i - 1] === next ? '#086727' : '#243140';
                   return (
                     <Fragment key={e.name}>
-                      {i > 0 && (() => {
-                        // "you are here": now falls inside this gap
-                        const prevEnd = new Date(events[i - 1].end).getTime();
-                        const thisEnd = new Date(e.end).getTime();
-                        const frac = now > prevEnd && now <= thisEnd ? (now - prevEnd) / (thisEnd - prevEnd) : null;
-                        return (
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', margin: '7px 14px 0', minWidth: 24, height: 14, position: 'relative' }}>
+                      {i > 0 && (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', margin: '7px 14px 0', minWidth: 24, height: 14 }}>
                           {reversed && <svg width="11" height="14" viewBox="0 0 11 14" style={{ flexShrink: 0 }} aria-hidden="true"><path d="M9 2 3 7l6 5" fill="none" stroke={arrowColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           <div style={{ flex: 1, height: 2, borderRadius: 2, background: arrowColor }} />
                           {!reversed && <svg width="11" height="14" viewBox="0 0 11 14" style={{ flexShrink: 0 }} aria-hidden="true"><path d="m2 2 6 5-6 5" fill="none" stroke={arrowColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                          {frac != null && (
-                            <div style={{ position: 'absolute', left: `${(reversed ? 1 - frac : frac) * 100}%`, top: -18, transform: 'translateX(-50%)', textAlign: 'center', pointerEvents: 'none' }}>
-                              <div style={{ fontFamily: RESIPLE, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: '#4fae7d', whiteSpace: 'nowrap' }}>TODAY</div>
-                              <div style={{ width: 2, height: 9, background: '#4fae7d', margin: '1px auto 0' }} />
-                            </div>
-                          )}
                         </div>
-                        );
-                      })()}
+                      )}
                       {/* fixed width so the two tracks' stops line up in columns */}
                       <div style={{ textAlign: 'center', width: 140, flexShrink: 0 }}>
                         <EventIcon kind={e.icon} color={past ? '#4d5b63' : active ? '#4fae7d' : '#a9bcc6'} />
