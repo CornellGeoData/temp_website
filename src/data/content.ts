@@ -31,7 +31,7 @@ export const PROJECTS: Project[] = [
     tag: 'Tech x Air',
     tagColor: '#c92556',
     title: '3D Printed Weather Stations',
-    body: "Weather stations printed to UCAR's open-source 3DPAWS design: temperature, pressure, humidity, wind and rain for a fraction of commercial cost. Built this summer, deploying around Cayuga Lake this fall.",
+    body: "Weather stations printed to UCAR's open-source 3DPAWS design: temperature, pressure, humidity, wind and rain at about a tenth the cost of a commercial station. Built summer 2026, deploying around Cayuga Lake in fall 2026.",
     photo: '/projects/sensors.webp',
   },
   {
@@ -57,7 +57,7 @@ export const PROJECTS: Project[] = [
     tag: 'Rock',
     tagColor: '#c1703f',
     title: 'NISAR Ground-Truthing',
-    body: "Five soil-moisture nodes at the Game Farm site check NASA's NISAR satellite against what's actually in the dirt.",
+    body: "Five soil-moisture nodes at the Game Farm site check NASA's NISAR satellite against what's actually in the dirt. One still reports; the other four keep their archives on the data page.",
     photo: '/projects/nisar.webp',
     photoAspect: '4/5',
     photoPosition: '50% 40%',
@@ -67,14 +67,14 @@ export const PROJECTS: Project[] = [
     tag: 'Tech x CUPI Partnership',
     tagColor: '#c92556',
     title: 'LiDAR Hexapod',
-    body: 'A LiDAR attachment for a six-legged robot, built jointly with Cornell Physical Intelligence. Paired with UAV LiDAR, it is our path to digital twins of the Finger Lakes.',
+    body: 'A LiDAR attachment for a six-legged robot, built jointly with Cornell Physical Intelligence. Its ground-level scans merge with UAV LiDAR into a 3D model of the Finger Lakes.',
     photo: '/projects/hexapod.webp',
   },
   {
     tag: 'Coming soon',
     tagColor: '#c92556',
     title: 'Drone Photogrammetry',
-    body: 'Coming soon: repeatable aerial surveys of Finger Lakes shorelines. Overlapping drone passes stitched into 3D scans, to make erosion measurable and give our sensor data terrain context.',
+    body: 'Repeatable aerial surveys of Finger Lakes shorelines. Overlapping drone passes stitched into 3D scans, to make erosion measurable and give our sensor data terrain context.',
     photo: '/projects/drone.webp',
   },
 ];
@@ -83,7 +83,69 @@ export const PARTNERS = [
   'Duffield College of Engineering',
   'Dept. of Earth & Atmospheric Sciences',
   'Cornell Project Team Program',
+  'Shen Fund for Social Impact',
 ];
+
+// Cornell project-team recruiting dates, fall 2026, from the Engineering
+// project teams recruiting calendar. `end` (Ithaca local time) is when the
+// event stops being "upcoming": the timeline greys past stops, and the
+// recruiting banner and join pills key off each track's 'apps' stop, so
+// updating these dates each August updates all three.
+export interface RecruitingEvent {
+  name: string;
+  when: string; // display text; \n breaks a line
+  end: string; // ISO with the Ithaca offset
+  icon: 'fest' | 'coffee' | 'apps' | 'interview' | 'offer' | 'deadline' | 'onboard';
+}
+
+export interface RecruitingTrack {
+  track: string;
+  form: string; // where the join pill and banner send applicants
+  formLabel: string; // the join pill's text before the deadline
+  events: RecruitingEvent[];
+}
+
+export const RECRUITING_TRACKS: RecruitingTrack[] = [
+  {
+    track: 'Upperclassmen',
+    form: 'https://docs.google.com/forms/d/e/1FAIpQLSfI87dxinWPeDd9aevwKjwfP0NtWR8uJDhHeD9qjdQPXV9oiA/viewform?usp=dialog',
+    formLabel: 'Upperclassmen Recruiting',
+    events: [
+      { name: 'Project Teams Fest', when: 'Sept 1, 4-6 p.m.\nDuffield Atrium', end: '2026-09-01T18:00:00-04:00', icon: 'fest' },
+      { name: 'Coffee Chats', when: 'Aug 27 – Sept 4', end: '2026-09-04T23:59:59-04:00', icon: 'coffee' },
+      { name: 'Applications Due', when: 'Sept 3, 11:59 p.m.', end: '2026-09-03T23:59:00-04:00', icon: 'apps' },
+      { name: 'Interviews', when: 'Sept 4 – 15', end: '2026-09-15T23:59:59-04:00', icon: 'interview' },
+      { name: 'First Offer Date', when: 'Sept 16', end: '2026-09-16T23:59:59-04:00', icon: 'offer' },
+      { name: 'Add Deadline', when: 'Sept 25, 5 p.m.', end: '2026-09-25T17:00:00-04:00', icon: 'deadline' },
+    ],
+  },
+  {
+    track: 'Freshmen + New Transfers',
+    form: 'https://docs.google.com/forms/d/1u6mjjlEL9Y4fdN8RFB1K6jTpS7aYig-wt54i3YyhtS8/viewform',
+    formLabel: 'Underclassmen Interest Form',
+    events: [
+      { name: 'Project Teams Fest', when: 'Sept 1, 4-6 p.m.\nDuffield Atrium', end: '2026-09-01T18:00:00-04:00', icon: 'fest' },
+      { name: 'Coffee Chats', when: 'Aug 27 – Oct 14', end: '2026-10-14T23:59:59-04:00', icon: 'coffee' },
+      { name: 'Applications Due', when: 'Oct 15, 11:59 p.m.', end: '2026-10-15T23:59:00-04:00', icon: 'apps' },
+      { name: 'Interviews', when: 'Oct 16 – Nov 1', end: '2026-11-01T23:59:59-05:00', icon: 'interview' },
+      { name: 'First Offer Date', when: 'Nov 2', end: '2026-11-02T23:59:59-05:00', icon: 'offer' },
+      { name: 'Onboarding Begins', when: 'Nov 4', end: '2026-11-04T23:59:59-05:00', icon: 'onboard' },
+    ],
+  },
+];
+
+export const COFFEE_CHAT_SHEET = 'https://docs.google.com/spreadsheets/d/1ZYLfV6FjYPi1sL58lr9eAjuKM37q2tXTtEAOSyoPfpU/edit?usp=sharing';
+
+// tracks whose application deadline is still ahead, with that deadline
+export const openApplications = (now = Date.now()) =>
+  RECRUITING_TRACKS.flatMap((t) => {
+    const apps = t.events.find((e) => e.icon === 'apps');
+    return apps && now <= Date.parse(apps.end) ? [{ track: t, due: apps }] : [];
+  });
+
+// '2026-09-03T23:59:00-04:00' -> '9/3', read off the string so every viewer
+// sees the Ithaca date regardless of their own timezone
+export const shortDate = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 
 export const SUBTEAM_COLORS: Record<string, string> = {
   Leadership: '#4fae7d',
@@ -93,6 +155,16 @@ export const SUBTEAM_COLORS: Record<string, string> = {
   Data: '#8b3fbf',
   Tech: '#c92556',
   Business: '#dcbe32',
+};
+
+// one-line snippets under each subteam heading on the members page
+export const SUBTEAM_BLURBS: Record<string, string> = {
+  Air: 'Atmospheric modeling, surveying, and forecasting.',
+  Water: 'Lake monitoring, waterway protection, and water-quality assessment.',
+  Rock: 'Remote sensing, soil biology, and geology.',
+  Data: 'Machine learning, data management, and data analytics.',
+  Tech: 'Hardware production, electronic management, and CAD design.',
+  Business: 'Sponsorships, partnerships, and events.',
 };
 
 // corner badges in public/badges/ - one per subteam

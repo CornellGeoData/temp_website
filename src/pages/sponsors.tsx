@@ -2,7 +2,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlumniPit } from '../components/AlumniPit';
-import { RESIPLE, MANTI, H2, BODY, SUBPAGE } from '../styles/theme';
+import { RESIPLE, MANTI, H2, BODY, SUBPAGE, PILL, PILL_PRIMARY } from '../styles/theme';
 import { SPONSOR_PACKET_PDF, TIERS, ALUMNI } from '../data/content';
 
 // the packet renders as pre-baked page images (public/sponsorship/) instead of
@@ -36,18 +36,23 @@ function PacketViewer() {
     document.body.style.overflow = full ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [full]);
-  const arrowStyle = (enabled: boolean): React.CSSProperties => ({ padding: '7px 22px', border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: enabled ? '#e6ecf0' : '#4d5b63', fontFamily: RESIPLE, fontWeight: 700, fontSize: 17, cursor: enabled ? 'pointer' : 'default', lineHeight: 1.2 });
+  const arrowStyle = (enabled: boolean): React.CSSProperties => ({ padding: '7px 22px', border: 0, background: '#1a2430', color: enabled ? '#e6ecf0' : '#4d5b63', fontFamily: RESIPLE, fontWeight: 700, fontSize: 17, cursor: enabled ? 'pointer' : 'default', lineHeight: 1.2 });
   const cornerBtn: React.CSSProperties = { padding: '5px 12px', fontFamily: RESIPLE, fontWeight: 700, fontSize: 11, boxShadow: '0 2px 10px rgba(0,0,0,0.45)', lineHeight: 1.4 };
   const viewer = (
     <div
-      className="team-photo-frame"
       style={full
         ? { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(14,20,28,0.98)', padding: 14 }
-        : { width: 'fit-content', maxWidth: '100%', margin: '0 auto', padding: 14, border: '2px solid #086727' }}
+        // inline: take whatever is left beside the text column and sit in
+        // the middle of it; on phones that is the full row
+        : { flex: '1 1 260px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
     >
-      <div style={{ position: 'relative' }}>
-        {/* sized by height so the whole page fits on screen without scrolling */}
-        <img key={page} src={packetPageSrc(page)} alt={`Sponsorship packet, page ${page + 1} of ${PACKET_PAGE_COUNT}`} style={{ display: 'block', height: full ? 'calc(100vh - 110px)' : 'min(56vh, 520px)', maxWidth: '100%', aspectRatio: '1400/1812', objectFit: 'contain', background: '#1a2430' }} />
+      <div style={{ position: 'relative', width: full ? undefined : 'min(70%, 320px)', border: '2px solid #e6ecf0' }}>
+        {/* inline: the page fills the column width and its height follows the
+            aspect ratio, so there is never a letterbox; fullscreen: fit the
+            page inside the viewport both ways */}
+        <img key={page} src={packetPageSrc(page)} alt={`Sponsorship packet, page ${page + 1} of ${PACKET_PAGE_COUNT}`} style={full
+          ? { display: 'block', width: 'auto', height: 'auto', maxWidth: 'calc(100vw - 28px)', maxHeight: 'calc(100vh - 110px)', aspectRatio: '1400/1812', background: '#1a2430' }
+          : { display: 'block', width: '100%', height: 'auto', aspectRatio: '1400/1812', background: '#1a2430' }} />
         <div style={{ position: 'absolute', right: 10, bottom: 10, display: 'flex', gap: 8 }}>
           <button
             type="button"
@@ -76,14 +81,21 @@ function CopyEmailButton({ label }: { label: string }) {
   return (
     <button
       type="button"
+      aria-label={copied ? 'Copied cugeodata@cornell.edu' : label}
       onClick={() => {
         navigator.clipboard.writeText('cugeodata@cornell.edu');
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      style={{ display: 'inline-block', padding: '13px 28px', borderRadius: 999, border: 0, cursor: 'pointer', background: '#086727', color: '#eaf2ee', fontWeight: 700, fontSize: 17, fontFamily: RESIPLE }}
+      style={{ ...PILL_PRIMARY, padding: '13px 28px', fontSize: 17, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 10 }}
     >
-      {copied ? 'Copied cugeodata@cornell.edu' : label}
+      {label}
+      {/* only mounted while copied, so the pill widens to make room for it */}
+      {copied && (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ animation: 'check-pop 180ms ease-out' }}>
+          <path d="M4 12.5l5 5L20 6.5" />
+        </svg>
+      )}
     </button>
   );
 }
@@ -92,13 +104,16 @@ export function SponsorsPage() {
   return (
     <section style={SUBPAGE}>
       <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-        <div style={{ display: 'flex', gap: 'clamp(32px,4vw,64px)', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
+        {/* no column gap: the packet's flex box runs from the text column's
+            right edge to the container's, so centering inside it splits the
+            space evenly; the row gap only matters once the packet wraps */}
+        <div style={{ display: 'flex', rowGap: 'clamp(32px,4vw,64px)', flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ flex: '0 1 560px', minWidth: 300 }}>
             <h2 style={H2}>Sponsorships &amp; Donations</h2>
-            <p style={{ ...BODY, maxWidth: 620, margin: '26px 0 0' }}>Every instrument we deploy is designed, built, and tested by students. Sponsor support directly funds the hardware, fieldwork, and research that make our projects possible.</p>
+            <p style={{ ...BODY, maxWidth: 620, margin: '26px 0 0' }}>Students design and build every instrument we deploy. Sponsorships pay for parts and field deployments.</p>
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 34 }}>
-              <CopyEmailButton label="Become a sponsor" />
-              <a href={SPONSOR_PACKET_PDF} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', padding: '13px 28px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)', color: '#e6ecf0', fontWeight: 700, fontSize: 17, fontFamily: RESIPLE }}>Download the packet (PDF)</a>
+              <CopyEmailButton label="Copy our email" />
+              <a href={SPONSOR_PACKET_PDF} target="_blank" rel="noopener noreferrer" style={{ ...PILL, padding: '13px 28px', fontSize: 17 }}>Download the packet (PDF)</a>
             </div>
           </div>
           {/* PACKET BOARD */}
@@ -110,7 +125,7 @@ export function SponsorsPage() {
           <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(28px,3.4vw,40px)', letterSpacing: '-0.02em', margin: '16px 0 0' }}>Sponsorship tiers</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(240px,100%),1fr))', gap: 26, marginTop: 44 }}>
             {TIERS.map((tier) => (
-              <div key={tier.name} style={{ background: '#141c26', borderTop: `3px solid ${tier.color}`, padding: '26px 24px' }}>
+              <div key={tier.name} style={{ background: '#141c26', padding: '26px 24px' }}>
                 <div style={{ fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: tier.color }}>{tier.name}</div>
                 <div style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 34, marginTop: 12 }}>{tier.amount}</div>
                 <ul style={{ margin: '18px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -128,11 +143,8 @@ export function SponsorsPage() {
         {/* ALUMNI */}
         <div style={{ marginTop: 130 }}>
           <h2 style={H2}>Alumni Ball Pit</h2>
-          <div className="team-photo-frame" style={{ padding: 14, border: '2px solid #086727', boxShadow: '10px 10px 0 rgba(8,103,39,0.35)', marginTop: 40 }}>
+          <div className="team-photo-frame" style={{ padding: 14, border: '2px solid #086727', marginTop: 40 }}>
             <AlumniPit alumni={ALUMNI} />
-          </div>
-          <div style={{ marginTop: 36 }}>
-            <CopyEmailButton label="Contact us for more info" />
           </div>
         </div>
       </div>

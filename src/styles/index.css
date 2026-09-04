@@ -67,6 +67,20 @@ body {
   text-size-adjust: 100%;
 }
 
+/* film grain over everything, including the header and modals: a 160px
+   monochrome noise tile rasterized once and repeated, so the filter never
+   runs at viewport size. Trial - opacity is the only knob */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
 img {
   user-select: none;
   -webkit-user-select: none;
@@ -166,6 +180,12 @@ details[open] > summary .chev::before {
 @keyframes star-drift {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
+}
+
+/* the copied check mark on the sponsors email button */
+@keyframes check-pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 @media (max-width: 720px) {
@@ -304,7 +324,7 @@ details[open] > summary .chev::before {
     grid-template-rows: none !important;
   }
 
-  /* team photo: slimmer frame and caption pill at phone width */
+  /* framed images (posts, sponsors): slimmer frame at phone width */
   .team-photo-frame {
     padding: 8px !important;
   }

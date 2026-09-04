@@ -181,9 +181,11 @@ export const POSTS: Post[] = [
     dek: "Five soil-moisture nodes at the Game Farm site check NASA's NISAR satellite against what's actually in the dirt.",
     photo: '/projects/nisar.webp',
     body: [
-      "Five soil-moisture nodes at the Game Farm site check NASA's NISAR satellite against what's actually in the dirt.",
+      "Five Zynect Soilmote nodes at the Game Farm log volumetric water content about every half hour over LoRa. NISAR estimates the same quantity from orbit with radar; the nodes are the ground reference it gets checked against.",
+      'GRASP is still reporting. CENSE, CAMPS, GLITZ, and NINJA have stopped, and their full archives are on the data page.',
     ],
     links: [
+      { label: 'Soil moisture charts', href: '#/sensors/soil' },
       { label: 'NISAR mission (NASA)', href: 'https://nisar.jpl.nasa.gov/' },
     ],
   },

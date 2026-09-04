@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { RESIPLE, MANTI, H2, SUBPAGE } from '../styles/theme';
-import { MEMBERS, SUBTEAM_COLORS, SUBTEAM_BADGES, SUBTEAM_COUNT, MEMBER_COUNT } from '../data/content';
+import { MEMBERS, SUBTEAM_COLORS, SUBTEAM_BADGES, SUBTEAM_BLURBS, SUBTEAM_COUNT, MEMBER_COUNT } from '../data/content';
 
 const teamLabel = (s: string): string => (s === 'Leadership' ? s : `${s} Team`);
 
@@ -20,7 +20,7 @@ export function MembersPage() {
       <div style={{ maxWidth: 1180, margin: '0 auto' }}>
         <div className="members-head" style={{ display: 'flex', flexWrap: 'wrap', gap: '28px 48px', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div>
-            <h2 style={H2}>Members</h2>
+            <h2 style={H2}>Subteams</h2>
           </div>
           <div className="members-stats" style={{ padding: '26px 36px', display: 'flex', gap: 48 }}>
             <div>
@@ -39,6 +39,9 @@ export function MembersPage() {
               <span style={{ width: 12, height: 12, borderRadius: 3, background: SUBTEAM_COLORS[subteam] ?? '#7c909b', display: 'inline-block' }} />
               {teamLabel(subteam)}
             </div>
+            {SUBTEAM_BLURBS[subteam] && (
+              <p style={{ fontSize: 15, lineHeight: 1.6, color: '#a9bcc6', margin: '10px 0 0' }}>{SUBTEAM_BLURBS[subteam]}</p>
+            )}
             <div className="members-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(190px,100%),1fr))', gap: '36px 28px', marginTop: 26 }}>
               {MEMBERS.filter((m) => m.subteam === subteam).map((m, i) => {
                 const tileKey = `${subteam}:${i}`;

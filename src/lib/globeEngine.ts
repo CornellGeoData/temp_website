@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Framework-agnostic three.js globe engine. Mounted onto a <canvas> by
-// Globe.tsx (the home hero) and SensorGlobe.tsx (the sensor picker); has no
+// Globe.tsx (the home hero); has no
 // React dependency itself.
 export interface MountArgs {
   canvasEl: HTMLCanvasElement;

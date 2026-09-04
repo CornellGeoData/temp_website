@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { RESIPLE, MANTI } from '../styles/theme';
-import SensorGlobe from '../components/SensorGlobe';
+import SensorMap from '../components/SensorMap';
+import { DataHome } from './data';
 import ForecastView from '../components/ForecastView';
+import StageLauncher from '../components/StageLauncher';
+import type { StageId } from '../data/stages';
 import { AIR, SOIL, WEATHER, type GlobeSite } from '../lib/sites';
 import soilArchive from '../data/soil-archive.json';
 
@@ -80,7 +83,7 @@ function fakeEggSeries(seed: number, days = 3, stepMin = 5): { key: string; poin
 // the first three, with the AQI trace ahead of them, are the four charts a
 // card shows at its opening size; the rest follow on scroll
 const EGG_CHANNELS: { key: string; label: string; unit: string; scale?: (v: number) => number; y0?: number; minSpan?: number; epaBands?: boolean; footnote?: string }[] = [
-  { key: 'pm2p5', label: 'PM2.5', unit: 'µg/m³', epaBands: true, footnote: '* EPA 24-hour safety standard: 9 µg/m³' },
+  { key: 'pm2p5', label: 'PM2.5', unit: 'µg/m³', epaBands: true, footnote: '* EPA AQI "Good" ceiling: 9 µg/m³ (2024 annual standard)' },
   // pm10p0 isn't charted but still feeds the AQI badge via AQI_BP
   // minSpan keeps a channel's ordinary wiggle from autoscaling to full height:
   // the plot only stretches when something actually happens
@@ -366,6 +369,8 @@ function downloadCsv(name: string, table: Table) {
 
 // square utility button, shared by the card headers and the static sheet
 const BTN: CSSProperties = { appearance: 'none', cursor: 'pointer', padding: '5px 11px', border: '1px solid rgba(255,255,255,0.22)', background: 'transparent', color: '#a9bcc6', fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 };
+// empty state for a window with no samples; the page only fetches on load
+const OFFLINE = 'No readings came back for this window. Reload the page to try again.';
 
 // one Soilmote card: the same soilmoisture trace at three zooms. Month tells the
 // story, day answers "is it wet right now". Battery voltage is in the feed too,
@@ -645,33 +650,44 @@ export function SensorsPage() {
     { status: 'loading' } | { status: 'error' } | { status: 'ready'; raw: Record<string, unknown> }
   >({ status: 'loading' });
   const [unit, setUnit] = useState<'C' | 'F'>('F');
-  // the imagery stage swaps the globe chrome (placard, tip) for its own
-  const [mapActive, setMapActive] = useState(false);
+  // stages come from the hash: #/sensors/<map|air|soil|weather|forecast>.
+  // Bare #/sensors is the landing page
+  const stageFromHash = () => window.location.hash.split('/')[2];
+  const [mapView, setMapView] = useState(() => stageFromHash() === 'map');
   // the globe is the whole page; readings exist only for picked sensors.
   // Several can be open at once - each gets its own floating card.
   const [open, setOpen] = useState<string[]>([]);
   // phones run the same stages; isMobile only reshapes the chrome (insets,
   // the bottom-sheet card) rather than forking the page
   const [isMobile] = useState(() => window.matchMedia('(max-width: 720px)').matches);
-  // the page footer goes away for the whole page - scrolling onto it from
-  // either stage reads as jarring. It lives in App, so it's toggled directly.
-  useEffect(() => {
-    const f = document.getElementById('partners');
-    if (f) f.style.display = 'none';
-    return () => { if (f) f.style.display = ''; };
-  }, []);
+  // the page footer goes away under a full-screen stage - scrolling onto it
+  // reads as jarring. It lives in App, so it's toggled directly.
   // the static sheet: the pre-globe sensors page (Air Quality / Soil Moisture
   // tabs, every chart with its lifetime twin) laid over the map stage. Holds
   // the open tab, or null while closed.
-  // deep links: #/sensors/<map|air|soil|weather|forecast> restores a stage on
-  // load, and the reflect effect below keeps the hash current for sharing
-  const initialStage = window.location.hash.split('/')[2];
-  const [staticView, setStaticView] = useState<'air' | 'soil' | 'weather' | null>(
-    initialStage === 'air' || initialStage === 'soil' || initialStage === 'weather' ? initialStage : null,
-  );
+  const tabFromHash = () => { const t = stageFromHash(); return t === 'air' || t === 'soil' || t === 'weather' ? t : null; };
+  const [staticView, setStaticView] = useState<'air' | 'soil' | 'weather' | null>(tabFromHash);
   // the forecast stage: regional weather maps over a light basemap, fed by the
-  // lab's render pipeline. A full-screen sheet like staticView, not a globe mode.
-  const [forecastView, setForecastView] = useState(initialStage === 'forecast');
+  // lab's render pipeline. A full-screen sheet like staticView.
+  const [forecastView, setForecastView] = useState(stageFromHash() === 'forecast');
+  // the landing's links change the hash without remounting this page
+  useEffect(() => {
+    const onHash = () => {
+      setMapView(stageFromHash() === 'map');
+      setStaticView(tabFromHash());
+      setForecastView(stageFromHash() === 'forecast');
+      setOpen([]);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  const home = !mapView && !staticView && !forecastView;
+  useEffect(() => {
+    if (home) return;
+    const f = document.getElementById('partners');
+    if (f) f.style.display = 'none';
+    return () => { if (f) f.style.display = ''; };
+  }, [home]);
   // a card's "Show all data" lands on that sensor's section, not the sheet top
   const [staticFocus, setStaticFocus] = useState<string | null>(null);
   const openStatic = (id: string) => {
@@ -687,40 +703,42 @@ export function SensorsPage() {
   }, [staticView, staticFocus]);
   // the static sheet's time window
   const [range, setRange] = useState<Range>('month');
-  // the bottom-left burger's little menu
-  const [menuUp, setMenuUp] = useState(false);
   // the fixed site header stays for the globe stage and slides away while the
   // imagery (and the static sheet over it) has the screen. It lives in App,
   // so it's styled directly.
+  // ...but peeks back while the mouse sits at the top edge, for navigation.
+  // The charts sheet is a page, not a map, so it keeps the header outright
+  const headerHidden = !staticView && (mapView || forecastView);
+  const [headerPeek, setHeaderPeek] = useState(false);
+  useEffect(() => {
+    if (!headerHidden) { setHeaderPeek(false); return; }
+    const onMove = (e: MouseEvent) => {
+      const h = (document.querySelector('.site-header') as HTMLElement | null)?.offsetHeight ?? 100;
+      setHeaderPeek((p) => (e.clientY < 12 ? true : e.clientY > h + 24 ? false : p));
+    };
+    window.addEventListener('mousemove', onMove);
+    return () => window.removeEventListener('mousemove', onMove);
+  }, [headerHidden]);
   useEffect(() => {
     const bar = document.querySelector('.site-header')?.parentElement as HTMLElement | null;
     if (!bar) return;
     bar.style.transition = 'transform 300ms ease';
-    bar.style.transform = mapActive || staticView || forecastView ? 'translateY(-100%)' : 'translateY(0)';
+    bar.style.transform = headerHidden && !headerPeek ? 'translateY(-100%)' : 'translateY(0)';
     // the header's own dropdown menu hangs below it, so sliding the bar away
     // would leave an open menu floating over the stage - App already closes
     // it on hashchange, so ring that same bell
-    if (mapActive || staticView || forecastView) window.dispatchEvent(new Event('hashchange'));
+    if (headerHidden && !headerPeek) window.dispatchEvent(new Event('hashchange'));
     return () => {
       bar.style.transition = '';
       bar.style.transform = '';
     };
-  }, [mapActive, staticView, forecastView]);
-  // the tip's "Ithaca" link starts the same descent as clicking the globe pin
-  const descendRef = useRef<(() => void) | null>(null);
-  // the burger menu's "Sensors" option climbs back out to the globe
-  const ascendRef = useRef<(() => void) | null>(null);
-  // a direct #/sensors/map load plays the descent once the globe has mounted
-  const wantMap = useRef(initialStage === 'map');
-  useEffect(() => { if (wantMap.current) descendRef.current?.(); }, []);
+  }, [headerHidden, headerPeek]);
   // reflect the current stage into the hash so refresh and copied links land
-  // back on it; replaceState adds no history entries, so Back still leaves
+  // where the reader was (replaceState fires no hashchange, so no loop)
   useEffect(() => {
-    if (mapActive) wantMap.current = false;
-    if (wantMap.current) return; // mid-descent: don't rewrite the hash back to the globe
-    const stage = staticView ?? (forecastView ? 'forecast' : mapActive ? 'map' : null);
+    const stage = staticView ?? (forecastView ? 'forecast' : mapView ? 'map' : null);
     history.replaceState(null, '', stage ? `#/sensors/${stage}` : '#/sensors');
-  }, [mapActive, staticView, forecastView]);
+  }, [mapView, staticView, forecastView]);
   // clicking a dot toggles its card: open sensors close on a re-click. On
   // mobile only one sheet fits, so a pick replaces instead of stacking.
   const pick = (id: string | null) => {
@@ -910,14 +928,14 @@ export function SensorsPage() {
       <>
         {egg && (
           state.status === 'loading' ? <Note>Contacting the egg&hellip;</Note>
-          : parsed[egg.id].length === 0 ? <Note>The sensor feed is offline right now. Check back soon.</Note>
+          : parsed[egg.id].length === 0 ? <Note>{OFFLINE}</Note>
           : <EggCharts series={parsed[egg.id]} unit={unit} />
         )}
         {mote && (() => {
           // 0% is a non-reading (probe out of soil), not data
           const pts = soilParsed[mote.id].find((x) => x.key === 'soilmoisture')?.points.filter((q) => q.v !== 0);
           return soil.status === 'loading' ? <Note>Contacting the probe&hellip;</Note>
-            : !pts || pts.length < 2 ? <Note>The sensor feed is offline right now. Check back soon.</Note>
+            : !pts || pts.length < 2 ? <Note>{OFFLINE}</Note>
             : <SoilCharts points={pts} lifetime={soilLifeParsed[mote.id].find((x) => x.key === 'soilmoisture')?.points.filter((q) => q.v !== 0 && q.t >= mote.lifeFrom)} />;
         })()}
         {ret && <SensorChart label="Lifetime" unit="% VWC" points={ARCHIVE[ret.name]} y0={0} minSpan={20} />}
@@ -926,7 +944,7 @@ export function SensorsPage() {
           // the full month behind Show all data
           const day = wxSeriesFor(wxSt.id, 'day');
           return !(wxSt.id in wx) ? <Note>Contacting the station&hellip;</Note>
-            : day.length === 0 ? <Note>The station feed is offline right now. Check back soon.</Note>
+            : day.length === 0 ? <Note>{OFFLINE}</Note>
             : <WeatherCharts series={day} unit={unit} />;
         })()}
       </>
@@ -1025,81 +1043,56 @@ export function SensorsPage() {
     return node ? [{ id, node }] : [];
   });
 
-  // the burger menu's destinations, shared by every stage's burger
-  const menuBtns = (line: string) => ([
-    ['Globe View', () => { setStaticView(null); setForecastView(false); ascendRef.current?.(); }],
-    ['Map View', () => { setStaticView(null); setForecastView(false); descendRef.current?.(); }],
-    ['Static View', () => { setForecastView(false); setStaticView('air'); }],
-    ['Forecast View', () => { setStaticView(null); setForecastView(true); }],
-  ] as const).map(([label, go]) => (
-    <button
-      key={label}
-      // switching stages is a fresh start: any open sensor cards close too
-      onClick={() => { setOpen([]); go(); setMenuUp(false); }}
-      style={{
-        appearance: 'none', cursor: 'pointer', padding: '7px 13px', whiteSpace: 'nowrap',
-        border: `1px solid ${line}`, background: 'rgba(14,20,28,0.88)', backdropFilter: 'blur(6px)',
-        color: '#e6ecf0', fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.12em', textTransform: 'uppercase',
-      }}
-    >
-      {label}
-    </button>
-  ));
+  // the launcher's destinations. Switching stages is a fresh start: any open
+  // sensor cards close too
+  const currentStage: StageId = staticView ? 'charts' : forecastView ? 'forecast' : mapView ? 'map' : 'home';
+  const goStage = (id: StageId) => {
+    setOpen([]);
+    setStaticView(id === 'charts' ? 'air' : null);
+    setForecastView(id === 'forecast');
+    setMapView(id === 'map');
+  };
+
+  if (home) return <DataHome />;
 
   return (
     <section style={{ position: 'relative', zIndex: 2, background: '#0e141c', height: '100dvh', overflow: 'hidden' }}>
-      {/* the globe has the full screen from the first frame; the header lives
-          above it (z 50) and slides in only when summoned to the top edge */}
+      {/* the map has the full screen; the header lives above it (z 50) and
+          slides in only when summoned to the top edge */}
       {/* zIndex 0 makes this a stacking context, so the cards' ever-growing
           bring-to-front z-indexes can never climb over the page chrome or the
           tabular sheet */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-        <SensorGlobe sites={sites} selectedIds={open} onSelect={pick} cards={cards} onMapChange={setMapActive} descendRef={descendRef} ascendRef={ascendRef} />
-      </div>
+      {mapView && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+          <SensorMap sites={sites} selectedIds={open} onSelect={pick} cards={cards} />
+        </div>
+      )}
       {/* one temperature unit for every card, parked beside Back - white on
           the imagery so it reads at a glance */}
-      {mapActive && (
-        // phones: the burger drops to a second row, so the bar takes the corner
-        <div style={{ position: 'absolute', top: 24, right: isMobile ? 24 : 76, zIndex: 4, display: 'flex', gap: 10 }}>
+      {mapView && (
+        // phones: the launcher drops to a second row, so the bar takes the corner
+        <div style={{ position: 'absolute', top: 24, right: isMobile ? 24 : 66, zIndex: 4, display: 'flex', gap: 10 }}>
           <span style={{
             display: 'inline-flex',
             border: '1px solid #ffffff', overflow: 'hidden',
             background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
           }}>
             {(['F', 'C'] as const).map((u) => (
-              // height pinned so the bar sits exactly as tall as the burger beside it
-              <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: 28, padding: '0 13px', fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', background: unit === u ? '#ffffff' : 'transparent', color: unit === u ? '#0e141c' : '#ffffff' }}>
+              // height pinned so the bar sits exactly as tall as the launcher beside it
+              <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 13px', fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', background: unit === u ? '#ffffff' : 'transparent', color: unit === u ? '#0e141c' : '#ffffff' }}>
                 &deg;{u}
               </button>
             ))}
           </span>
         </div>
       )}
-      {/* the one instruction the globe needs - parked bottom right, clear of
-          the site header up top */}
-      {!mapActive && (
-        <div style={{
-          position: 'absolute', bottom: 36, right: isMobile ? 16 : 48, zIndex: 4, maxWidth: 190,
-          padding: '7px 11px', background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
-          border: '1px solid rgba(255,255,255,0.22)',
-          fontFamily: RESIPLE, fontSize: 11, lineHeight: 1.45, color: '#a9bcc6', textAlign: 'right',
-        }}>
-          Click on{' '}
-          <button
-            onClick={() => descendRef.current?.()}
-            style={{ appearance: 'none', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', letterSpacing: 'inherit', color: '#ffffff', textDecoration: 'underline' }}
-          >
-            Ithaca
-          </button>
-          {' '}for a map view of our deployed sensors
-        </div>
-      )}
       {/* ---- the static sheet: the pre-globe sensors page over the stage ---- */}
       {staticView && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: '#0e141c', overflowY: 'auto', padding: '26px clamp(16px,5vw,48px) 96px' }}>
+        // top padding clears the fixed site header, which stays for this sheet
+        <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: '#0e141c', overflowY: 'auto', padding: `${((document.querySelector('.site-header') as HTMLElement | null)?.offsetHeight ?? 102) + 26}px clamp(16px,5vw,48px) 96px` }}>
           <div style={{ maxWidth: 1180, margin: '0 auto' }}>
             {/* one line, even at 390px: unlabeled dropdowns (Month / °F speak
-                for themselves), compact tabs, burger on the right */}
+                for themselves), compact tabs, launcher on the right */}
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: isMobile ? 6 : 12 }}>
               <div style={{ display: 'inline-flex', border: `2px solid ${TAB_TONE[staticView]}`, overflow: 'hidden' }}>
                 {([['air', isMobile ? 'AQ Egg' : 'Air Quality'], ['weather', 'Weather'], ['soil', isMobile ? 'Soil' : 'Soil Moisture']] as const).map(([id, label]) => (
@@ -1128,52 +1121,30 @@ export function SensorsPage() {
               >
                 {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
-              {/* the sheet's burger rides the row's right end, styled and
+              {/* the sheet's launcher rides the row's right end, styled and
                   sized like the dropdowns beside it */}
-              <span style={{ position: 'relative' }}>
-                <button
-                  aria-label="Menu"
-                  aria-expanded={menuUp}
-                  onClick={() => setMenuUp((m) => !m)}
-                  style={{
-                    display: 'inline-flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 3,
-                    height: 33, padding: isMobile ? '0 10px' : '0 14px', appearance: 'none', cursor: 'pointer',
-                    border: '1px solid rgba(255,255,255,0.22)', background: '#141c26',
-                  }}
-                >
-                  {[0, 1, 2].map((i) => <span key={i} style={{ width: 14, height: 2, background: '#e6ecf0' }} />)}
-                </button>
-                {menuUp && (
-                  // inset a hair from the burger's edge, so the boxes never
-                  // trace the sensor cards' right border underneath
-                  <span style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 10, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-                    {menuBtns('rgba(255,255,255,0.22)')}
-                  </span>
-                )}
-              </span>
+              <StageLauncher current={currentStage} onGo={goStage} buttonStyle={{ height: 33, width: 33, border: '1px solid rgba(255,255,255,0.22)', background: '#141c26', backdropFilter: 'none' }} />
             </div>
-            {staticView === 'air' && EGGS.map((egg, i) => (
+            {staticView === 'air' && EGGS.map((egg) => (
               <details key={egg.id} id={`static-${egg.id}`} open style={{ background: '#141c26', border: `1px solid ${AIR}`, padding: 'clamp(20px,3.5vw,36px)', marginTop: 24, scrollMarginTop: 16 }}>
                 <summary style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '8px 18px' }}>
                   <span className="chev" style={{ color: '#7c909b', alignSelf: 'center' }} />
                   <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', letterSpacing: '-0.015em', margin: 0 }}>{egg.name}</h3>
                   <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>{egg.location}</span>
                   <span style={{ flex: 1 }} />
-                  {/* the burger dropdown falls over the first card's corner -
-                      that one steps aside while the menu is open */}
-                  <button onClick={(e) => { e.preventDefault(); download(egg.id); }} style={{ ...BTN, visibility: menuUp && i === 0 ? 'hidden' : 'visible' }}>Download</button>
+                  <button onClick={(e) => { e.preventDefault(); download(egg.id); }} style={BTN}>Download</button>
                 </summary>
                 <div style={{ marginTop: 28 }}>
                   {(() => {
                     const series = eggSeriesFor(egg.id, range);
                     return state.status === 'loading' ? <Note>Contacting the egg&hellip;</Note>
-                      : series.length === 0 ? <Note>The sensor feed is offline right now. Check back soon.</Note>
+                      : series.length === 0 ? <Note>{OFFLINE}</Note>
                       : <EggCharts series={series} unit={unit} />;
                   })()}
                 </div>
               </details>
             ))}
-            {staticView === 'soil' && SOILMOTES.map((mote, i) => {
+            {staticView === 'soil' && SOILMOTES.map((mote) => {
               const pts = soilPtsFor(mote.id, range);
               return (
                 <details key={mote.id} id={`static-${mote.id}`} open style={{ background: '#141c26', border: `1px solid ${SOIL}`, padding: 'clamp(20px,3.5vw,36px)', marginTop: 24, scrollMarginTop: 16 }}>
@@ -1183,11 +1154,11 @@ export function SensorsPage() {
                     {/* coords are dead weight on a phone-width summary line */}
                     <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>{isMobile ? mote.location : `${mote.location} ${mote.coords}`}</span>
                     <span style={{ flex: 1 }} />
-                    <button onClick={(e) => { e.preventDefault(); download(mote.id); }} style={{ ...BTN, visibility: menuUp && i === 0 ? 'hidden' : 'visible' }}>Download</button>
+                    <button onClick={(e) => { e.preventDefault(); download(mote.id); }} style={BTN}>Download</button>
                   </summary>
                   <div style={{ marginTop: 28 }}>
                     {soil.status === 'loading' ? <Note>Contacting the probe&hellip;</Note>
-                      : pts.length < 2 ? <Note>The sensor feed is offline right now. Check back soon.</Note>
+                      : pts.length < 2 ? <Note>{OFFLINE}</Note>
                       : <SensorChart label={RANGES.find(([v]) => v === range)![1]} unit="% VWC" points={thin(pts)} y0={0} minSpan={20} />}
                   </div>
                 </details>
@@ -1214,7 +1185,7 @@ export function SensorsPage() {
                 ))}
               </div>
             )}
-            {staticView === 'weather' && NEWA_STATIONS.map((st, i) => {
+            {staticView === 'weather' && NEWA_STATIONS.map((st) => {
               const series = wxSeriesFor(st.id, range);
               return (
                 <details key={st.id} id={`static-${st.id}`} open style={{ background: '#141c26', border: `1px solid ${WEATHER}`, padding: 'clamp(20px,3.5vw,36px)', marginTop: 24, scrollMarginTop: 16 }}>
@@ -1223,11 +1194,11 @@ export function SensorsPage() {
                     <h3 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(24px,3vw,32px)', letterSpacing: '-0.015em', margin: 0 }}>{st.name}</h3>
                     <span style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c909b' }}>{isMobile ? st.location : `${st.location} ${Math.abs(st.lat).toFixed(2)}° N, ${Math.abs(st.lon).toFixed(2)}° W`}</span>
                     <span style={{ flex: 1 }} />
-                    <button onClick={(e) => { e.preventDefault(); download(st.id); }} style={{ ...BTN, visibility: menuUp && i === 0 ? 'hidden' : 'visible' }}>Download</button>
+                    <button onClick={(e) => { e.preventDefault(); download(st.id); }} style={BTN}>Download</button>
                   </summary>
                   <div style={{ marginTop: 28 }}>
                     {!(st.id in wx) ? <Note>Contacting the station&hellip;</Note>
-                      : series.length === 0 ? <Note>The station feed is offline right now. Check back soon.</Note>
+                      : series.length === 0 ? <Note>{OFFLINE}</Note>
                       : (
                         <>
                           {/* the month feed stands in while the archive is out - say so */}
@@ -1247,53 +1218,22 @@ export function SensorsPage() {
           </div>
         </div>
       )}
-      {/* ---- the forecast stage: light map + weather overlays, own burger ---- */}
+      {/* ---- the forecast stage: light map + weather overlays, own launcher ---- */}
       {forecastView && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 30 }}>
           <ForecastView />
-          <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-            <button
-              aria-label="Menu"
-              aria-expanded={menuUp}
-              onClick={() => setMenuUp((m) => !m)}
-              style={{
-                display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 3,
-                width: 40, height: 30, appearance: 'none', cursor: 'pointer', flexShrink: 0,
-                border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(14,20,28,0.82)', backdropFilter: 'blur(6px)',
-              }}
-            >
-              {[0, 1, 2].map((i) => <span key={i} style={{ width: 14, height: 2, background: '#e6ecf0' }} />)}
-            </button>
-            {menuUp && menuBtns('rgba(255,255,255,0.25)')}
+          <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 5 }}>
+            <StageLauncher current={currentStage} onGo={goStage} />
           </div>
         </div>
       )}
-      {/* the burger IS the way between the globe, the map, the forecast, and
-          the static sheet. Bottom left on the globe (level with the tip); top
-          right in white on the imagery, sized to the temp bar. The forecast
-          stage and static sheet carry their own copies. */}
-      {!staticView && !forecastView && (
-        <div style={{
-          position: 'absolute', zIndex: 40, display: 'flex', flexDirection: 'column', gap: 8,
-          ...(mapActive
-            // phones: the temp bar owns the top row, the burger sits under it
-            ? { top: isMobile ? 62 : 24, right: 24, alignItems: 'flex-end' }
-            : { bottom: 36, left: isMobile ? 16 : 48, alignItems: 'flex-start' }),
-        }}>
-          {!mapActive && menuUp && menuBtns('rgba(255,255,255,0.22)')}
-          <button
-            aria-label="Menu"
-            aria-expanded={menuUp}
-            onClick={() => setMenuUp((m) => !m)}
-            style={{
-              display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 3,
-              width: mapActive ? 40 : 42, height: mapActive ? 30 : 38, appearance: 'none', cursor: 'pointer', flexShrink: 0,
-              border: `1px solid ${mapActive ? '#ffffff' : 'rgba(255,255,255,0.22)'}`, background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
-            }}
-          >
-            {[0, 1, 2].map((i) => <span key={i} style={{ width: 14, height: 2, background: mapActive ? '#ffffff' : '#a9bcc6' }} />)}
-          </button>
-          {mapActive && menuUp && menuBtns('#ffffff')}
+      {/* the launcher IS the way between the views. Top right in white on the
+          imagery, sized to the temp bar. The forecast stage and the charts
+          sheet carry their own copies. */}
+      {mapView && (
+        // phones: the temp bar owns the top row, the launcher sits under it
+        <div style={{ position: 'absolute', zIndex: 40, top: isMobile ? 62 : 24, right: 24 }}>
+          <StageLauncher current={currentStage} onGo={goStage} ink="#ffffff" buttonStyle={{ border: '1px solid #ffffff', background: 'rgba(14,20,28,0.72)' }} />
         </div>
       )}
     </section>

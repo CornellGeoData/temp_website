@@ -34,7 +34,7 @@ export function PostPage({ post }: { post: Post }) {
         {/* text runs get lifted cards for readability; images sit on the page between them */}
         {postChunks.map((chunk, i) => (
           Array.isArray(chunk) ? (
-            <div key={i} style={{ background: '#17212c', border: '1px solid rgba(255,255,255,0.07)', padding: 'clamp(24px,5vw,56px)', maxWidth: 760, margin: `${i === 0 ? 56 : 48}px auto 0` }}>
+            <div key={i} style={{ background: '#17212c', padding: 'clamp(24px,5vw,56px)', maxWidth: 760, margin: `${i === 0 ? 56 : 48}px auto 0` }}>
               {chunk.map((para, j) => (
                 <p key={j} style={{ fontFamily: "'Source Serif 4',Georgia,serif", fontSize: 17.5, lineHeight: 1.85, color: '#c4d1d9', margin: j === 0 ? 0 : '36px 0 0' }}>{emphasize(para)}</p>
               ))}
@@ -46,7 +46,7 @@ export function PostPage({ post }: { post: Post }) {
           )
         ))}
         {(post.links.length > 0 || post.credit) && (
-          <div style={{ background: '#17212c', border: '1px solid rgba(255,255,255,0.07)', padding: 'clamp(24px,5vw,56px)', maxWidth: 760, margin: '48px auto 0' }}>
+          <div style={{ background: '#17212c', padding: 'clamp(24px,5vw,56px)', maxWidth: 760, margin: '48px auto 0' }}>
             {post.links.length > 0 && (
               <>
                 <div style={{ fontFamily: RESIPLE, fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#4fae7d' }}>Links</div>
@@ -86,7 +86,7 @@ export function PostsPage({ filter, onFilter }: { filter: 'all' | 'project' | 'b
         </div>
         <div style={{ marginTop: 48 }}>
           {POSTS.filter((post) => filter === 'all' || post.kind === filter).map((post, i) => (
-            <article key={post.slug} style={i === 0 ? undefined : { borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 44, paddingTop: 44 }}>
+            <article key={post.slug} style={i === 0 ? undefined : { marginTop: 72 }}>
               <a href={`#/posts/${post.slug}`} className="post-link post-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) clamp(130px,30vw,300px)', gap: 'clamp(18px,3.5vw,44px)', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7c909b' }}>

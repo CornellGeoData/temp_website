@@ -12,7 +12,7 @@ const WX_BASE = 'https://cornellgeodata.github.io/geodata-wx';
 // conventional weather colors carry all the meaning. Levels stop at 16.
 const LIGHT_TILES = (z: number, x: number, y: number) =>
   `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${z}/${y}/${x}`;
-const LIGHT_ATTR = 'Basemap: Esri, weather: NOAA via dynamical.org';
+const LIGHT_ATTR = 'Basemap: Esri. HRRR: NOAA via dynamical.org';
 
 // the larger Finger Lakes framing (fixed by decision; matches render_wx.py BBOX)
 const SMALL = window.matchMedia('(max-width: 720px)').matches;
@@ -52,9 +52,9 @@ interface WxLayer {
 // at the top, numbers inboard of the bar.
 const HALO = '0 0 4px rgba(255,255,255,0.95), 0 0 2px rgba(255,255,255,0.9)';
 function ColorScale({ scale }: { scale: Scale }) {
-  // the bar shrinks on short windows so the key never climbs into the burger
-  // dropdown's zone (~380px of chrome above it: menu, anchor, caption)
-  const H = Math.max(160, Math.min(SMALL ? 230 : 300, window.innerHeight - 380));
+  // the bar shrinks on short windows so the key clears the launcher button
+  // above and the timebar below
+  const H = Math.max(160, Math.min(SMALL ? 230 : 300, window.innerHeight - 260));
   const ring = '0 0 0 1px rgba(255,255,255,0.9), 0 1px 4px rgba(0,0,0,0.5)';
   let bar = null;
   let ticks: { frac: number; v: number }[] = [];
@@ -128,8 +128,20 @@ export default function ForecastView() {
     return () => { alive = false; };
   }, []);
 
-  const layers = typeof manifest === 'object' ? manifest.layers : [];
+  // StormCast shows accumulated precip only; its rain-rate twin is published
+  // but not offered here
+  const layers = typeof manifest === 'object' ? manifest.layers.filter((l) => l.id !== 'stormcast_rain') : [];
   const layer = layers.find((l) => l.id === layerId) ?? null;
+  // the picker is two tiers: a model chip (Nowcast / StormCast / HRRR) that
+  // opens to its layers. undefined = follow whichever model the current layer
+  // is from. Nowcast = the StormScope 0-6h radar lane (10-min frames).
+  const groupOf = (l: WxLayer) =>
+    l.source.includes('StormScope') ? 'Nowcast' : l.source.includes('StormCast') ? 'StormCast' : 'HRRR';
+  // chips in freshness order regardless of manifest order
+  const GROUP_ORDER = ['Nowcast', 'StormCast', 'HRRR'];
+  const groups = [...new Set(layers.map(groupOf))].sort((a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b));
+  const [openGroup, setOpenGroup] = useState<string | null | undefined>(undefined);
+  const shownGroup = openGroup === undefined ? (layer ? groupOf(layer) : null) : openGroup;
   // scrub position survives layer switches (compare the same hour across
   // variables); clamped for layers with fewer frames, like radar's single one
   const idx = layer ? Math.min(frame, layer.frames.length - 1) : 0;
@@ -197,7 +209,7 @@ export default function ForecastView() {
         dur={1}
         tileUrl={LIGHT_TILES}
         attribution={LIGHT_ATTR}
-        minZ={8}
+        minZ={5}
         maxZ={15}
         overlays={overlays}
       />
@@ -205,49 +217,54 @@ export default function ForecastView() {
       {/* top-left: the layer picker, with the run provenance as a footnote
           under it rather than a title bar */}
       <div style={{ position: 'absolute', top: SMALL ? 18 : 24, left: SMALL ? 12 : 24, zIndex: 4, display: 'flex', flexDirection: 'column', gap: 7, maxWidth: SMALL ? 'calc(100vw - 74px)' : 'calc(100% - 110px)' }}>
-        {layers.length > 0 && (
-          // phones: a two-row carousel swiped sideways - shows ~7 layers at a
-          // glance without burying the map, and the cut-off chip at the edge
-          // is the scroll affordance
-          <div style={{
-            ...(SMALL
-              ? { display: 'grid', gridAutoFlow: 'column' as const, gridTemplateRows: 'auto auto', gap: 6, overflowX: 'auto' as const, scrollbarWidth: 'none' as const, paddingBottom: 2, justifyContent: 'start' as const }
-              : { display: 'flex', flexWrap: 'wrap' as const, gap: 6 }),
-          }}>
-            {layers.map((l) => (
-              <button
-                key={l.id}
-                onClick={() => setLayerId(l.id)}
-                style={{
-                  ...PANEL, appearance: 'none', cursor: 'pointer', padding: '6px 11px',
-                  fontSize: 11.5, letterSpacing: '0.1em', textTransform: 'uppercase',
-                  whiteSpace: 'nowrap', flexShrink: 0,
-                  background: l.id === layerId ? '#e6ecf0' : (PANEL.background as string),
-                  color: l.id === layerId ? '#0e141c' : '#e6ecf0',
-                  // the active pick goes light, so it needs a dark line to hold
-                  // its edge against the light basemap
-                  border: l.id === layerId ? '1px solid #0e141c' : (PANEL.border as string),
-                }}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {layers.length > 0 && (() => {
+          const chip = (active: boolean): React.CSSProperties => ({
+            ...PANEL, appearance: 'none', cursor: 'pointer', padding: '6px 11px',
+            fontSize: 11.5, letterSpacing: '0.1em', textTransform: 'uppercase',
+            whiteSpace: 'nowrap', flexShrink: 0,
+            background: active ? '#e6ecf0' : (PANEL.background as string),
+            color: active ? '#0e141c' : '#e6ecf0',
+            // the active pick goes light, so it needs a dark line to hold
+            // its edge against the light basemap
+            border: active ? '1px solid #0e141c' : (PANEL.border as string),
+          });
+          return (
+            <>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {groups.map((g) => (
+                  <button key={g} onClick={() => setOpenGroup(shownGroup === g ? null : g)} style={chip(shownGroup === g)}>
+                    {g} {shownGroup === g ? '▾' : '▸'}
+                  </button>
+                ))}
+              </div>
+              {shownGroup && (
+                // phones: one row swiped sideways; the cut-off chip at the edge is the scroll affordance
+                <div style={{ display: 'flex', gap: 6, ...(SMALL ? { overflowX: 'auto' as const, scrollbarWidth: 'none' as const, paddingBottom: 2 } : { flexWrap: 'wrap' as const }) }}>
+                  {layers.filter((l) => groupOf(l) === shownGroup).map((l) => (
+                    <button key={l.id} onClick={() => setLayerId(l.id)} style={chip(l.id === layerId)}>
+                      {l.label.replace(new RegExp(`^${groupOf(l)} `), '')}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
         {layer && (
           <div style={{ fontFamily: RESIPLE, fontSize: 10.5, letterSpacing: '0.06em', color: stale ? '#8a5f10' : '#3d4a55', textShadow: HALO }}>
             {/* the manifest's source strings carry separator dots; the line
                 rendered here stays plain: name, then the init cycle */}
-            Forecast: {layer.source.includes('StormCast') ? 'Local StormCast run' : layer.source.replace(/\s*·\s*/g, ', ')}
+            Forecast: {layer.source.includes('StormScope') ? 'Local StormScope nowcast' : layer.source.includes('StormCast') ? 'Local StormCast run' : layer.source.replace(/\s*·\s*/g, ', ')}
             {layer.kind === 'forecast' && layer.init ? `, init ${fmtInit(layer.init)}` : ''}
           </div>
         )}
       </div>
 
-      {/* right side: the active layer's colour scale, straight on the map.
-          Anchored off the bottom so the burger's dropdown never reaches it */}
+      {/* right side: the active layer's colour scale, straight on the map,
+          centred vertically now that the launcher opens as a panel, not a
+          dropdown that could reach it */}
       {layer?.scale && (
-        <div style={{ position: 'absolute', right: SMALL ? 14 : 26, bottom: SMALL ? 90 : 110, zIndex: 4, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', right: SMALL ? 14 : 26, top: '50%', transform: 'translateY(-50%)', zIndex: 4, pointerEvents: 'none' }}>
           <ColorScale scale={layer.scale} />
         </div>
       )}
@@ -283,12 +300,12 @@ export default function ForecastView() {
 
       {manifest === 'loading' && (
         <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 4, ...PANEL, padding: '10px 16px', fontSize: 13 }}>
-          Fetching the latest weather&hellip;
+          Loading the forecast&hellip;
         </div>
       )}
       {(manifest === 'error' || (typeof manifest === 'object' && layers.length === 0)) && (
         <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 4, ...PANEL, padding: '10px 16px', fontSize: 13 }}>
-          The forecast feed is offline right now. Check back soon.
+          The forecast feed could not be loaded. Reload the page to try again.
         </div>
       )}
     </div>

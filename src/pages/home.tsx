@@ -1,38 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import Globe from '../components/Globe';
 import { RESIPLE, MANTI, H2, BODY, PILL, PILL_PRIMARY, fmtTag } from '../styles/theme';
-import { PROJECTS } from '../data/content';
-
-// Cornell project-team recruiting dates, fall 2026, from the Engineering
-// project teams recruiting calendar. `end` (Ithaca local time) is when the
-// event stops being "upcoming" - past events grey out, the next one is green.
-// rows: each inner array renders as one line of the path; a continuation
-// arrow leads into every row after the first
-// the 9/3 deadline is also hardcoded in the JOIN pills below and in the App.tsx recruiting banner - update all three each August.
-const RECRUITING_TRACKS = [
-  {
-    track: 'Upperclassmen',
-    rows: [[
-      { name: 'Project Teams Fest', when: 'Sept 1, 4-6 p.m.\nDuffield Atrium', end: '2026-09-01T18:00:00-04:00', icon: 'fest' },
-      { name: 'Coffee Chats', when: 'Aug 27 – Sept 4', end: '2026-09-04T23:59:59-04:00', icon: 'coffee' },
-      { name: 'Applications Due', when: 'Sept 3, 11:59 p.m.', end: '2026-09-03T23:59:00-04:00', icon: 'apps' },
-      { name: 'Interviews', when: 'Sept 4 – 15', end: '2026-09-15T23:59:59-04:00', icon: 'interview' },
-      { name: 'First Offer Date', when: 'Sept 16', end: '2026-09-16T23:59:59-04:00', icon: 'offer' },
-      { name: 'Add Deadline', when: 'Sept 25, 5 p.m.', end: '2026-09-25T17:00:00-04:00', icon: 'deadline' },
-    ]],
-  },
-  {
-    track: 'Freshmen + New Transfers',
-    rows: [[
-      { name: 'Project Teams Fest', when: 'Sept 1, 4-6 p.m.\nDuffield Atrium', end: '2026-09-01T18:00:00-04:00', icon: 'fest' },
-      { name: 'Coffee Chats', when: 'Aug 27 – Oct 14', end: '2026-10-14T23:59:59-04:00', icon: 'coffee' },
-      { name: 'Applications Due', when: 'Oct 15, 11:59 p.m.', end: '2026-10-15T23:59:00-04:00', icon: 'apps' },
-      { name: 'Interviews', when: 'Oct 16 – Nov 1', end: '2026-11-01T23:59:59-05:00', icon: 'interview' },
-      { name: 'First Offer Date', when: 'Nov 2', end: '2026-11-02T23:59:59-05:00', icon: 'offer' },
-      { name: 'Onboarding Begins', when: 'Nov 4', end: '2026-11-04T23:59:59-05:00', icon: 'onboard' },
-    ]],
-  },
-];
+import { PROJECTS, RECRUITING_TRACKS, COFFEE_CHAT_SHEET, openApplications, shortDate } from '../data/content';
 
 // hand-drawn-style line icons for the timeline stops, same stroke language as
 // the tethersonde balloon in the join heading
@@ -61,21 +30,25 @@ function RecruitingTimeline() {
     return () => mq.removeEventListener('change', onChange);
   }, []);
   return (
-    <section style={{ position: 'relative', zIndex: 2, background: '#0e141c', padding: '0 clamp(24px,5vw,72px) 130px' }}>
+    <section style={{ position: 'relative', zIndex: 2, background: '#0e141c', padding: '0 clamp(24px,5vw,72px) 96px' }}>
       {/* on phones the heading drops lower - clear of the Join section above,
           tighter against its own timeline below */}
       <h2 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(42px,6.2vw,80px)', letterSpacing: '-0.03em', lineHeight: 1, margin: mobile ? '40px 0 0' : 0 }}>Recruiting <span style={{ color: '#4fae7d' }}>Timeline</span></h2>
-      <div style={{ marginTop: mobile ? 20 : 44, padding: '0 4px 42px', overflowX: 'auto' }}>
-      {RECRUITING_TRACKS.map(({ track, rows }) => {
-        const next = rows.flat().find((e) => now <= new Date(e.end).getTime());
+      <div style={{ marginTop: mobile ? 20 : 44, padding: '0 4px 24px', overflowX: 'auto' }}>
+      {RECRUITING_TRACKS.map(({ track, events }, t) => {
+        // the latest stop that has ended: everything up to it is past (a coffee
+        // window that outlasts the application deadline greys with it), and
+        // the stop after it is the green one
+        const lastEnded = events.reduce((acc, e, i) => (now > new Date(e.end).getTime() ? i : acc), -1);
+        const next = events[lastEnded + 1];
         return (
-          <div key={track} style={{ marginTop: mobile ? 44 : 100 }}>
+          <div key={track} style={{ marginTop: mobile ? 44 : t === 0 ? 56 : 88 }}>
             <div style={{ fontFamily: RESIPLE, fontSize: 19, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#4fae7d' }}>{track}</div>
             {mobile ? (
-              // single vertical column on phones instead of the snaking rows
+              // single vertical column on phones instead of the row
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 24 }}>
-                {rows.flat().map((e, i, all) => {
-                  const past = now > new Date(e.end).getTime();
+                {events.map((e, i, all) => {
+                  const past = i <= lastEnded;
                   const active = e === next;
                   const arrowColor = all[i - 1] === next ? '#086727' : '#243140';
                   return (
@@ -102,26 +75,9 @@ function RecruitingTimeline() {
                 })}
               </div>
             ) : (
-            <>
-            {/* ox path: even rows run left-to-right, odd rows run right-to-left,
-                joined by a curve down the right edge */}
-            {rows.map((events, r) => {
-              const reversed = r % 2 === 1;
-              const first = events[0];
-              const curveColor = now > new Date(first.end).getTime() || first === next ? '#086727' : '#243140';
-              return (
-              <Fragment key={r}>
-                {r > 0 && (
-                  // the ox-turn: continues right off the row above, arcs down,
-                  // and points left into the first stop of the row below
-                  <svg width="150" height="60" viewBox="0 0 150 60" style={{ display: 'block', margin: '6px 0 0 auto' }} aria-hidden="true">
-                    <path d="M85 8h25a22 22 0 0 1 0 44H95" fill="none" stroke={curveColor} strokeWidth="2" />
-                    <path d="m103 47-8 5 8 5" fill="none" stroke={curveColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              <div style={{ display: 'flex', flexDirection: reversed ? 'row-reverse' : 'row', alignItems: 'flex-start', marginTop: r === 0 ? 24 : 4 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', marginTop: 24 }}>
                 {events.map((e, i) => {
-                  const past = now > new Date(e.end).getTime();
+                  const past = i <= lastEnded;
                   const active = e === next;
                   // only the arrow leaving the current stop is green
                   const arrowColor = events[i - 1] === next ? '#086727' : '#243140';
@@ -129,9 +85,8 @@ function RecruitingTimeline() {
                     <Fragment key={e.name}>
                       {i > 0 && (
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', margin: '7px 14px 0', minWidth: 24, height: 14 }}>
-                          {reversed && <svg width="11" height="14" viewBox="0 0 11 14" style={{ flexShrink: 0 }} aria-hidden="true"><path d="M9 2 3 7l6 5" fill="none" stroke={arrowColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           <div style={{ flex: 1, height: 2, borderRadius: 2, background: arrowColor }} />
-                          {!reversed && <svg width="11" height="14" viewBox="0 0 11 14" style={{ flexShrink: 0 }} aria-hidden="true"><path d="m2 2 6 5-6 5" fill="none" stroke={arrowColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                          <svg width="11" height="14" viewBox="0 0 11 14" style={{ flexShrink: 0 }} aria-hidden="true"><path d="m2 2 6 5-6 5" fill="none" stroke={arrowColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </div>
                       )}
                       {/* fixed width so the two tracks' stops line up in columns */}
@@ -150,10 +105,6 @@ function RecruitingTimeline() {
                   );
                 })}
               </div>
-              </Fragment>
-              );
-            })}
-            </>
             )}
           </div>
         );
@@ -164,6 +115,8 @@ function RecruitingTimeline() {
 }
 
 export function HomePage() {
+  // tracks still accepting applications drive the pills; the first is primary
+  const open = openApplications();
   return (
     <>
     <Globe />
@@ -172,7 +125,7 @@ export function HomePage() {
     <section id="projects" style={{ position: 'relative', zIndex: 2, background: '#0e141c', padding: '120px clamp(24px,5vw,72px) 48px' }}>
       <div style={{ maxWidth: 1180, margin: '0 auto' }}>
         <h2 style={{ ...H2, maxWidth: '16ch' }}>Instruments built by students, deployed in the field</h2>
-        <p style={{ ...BODY, margin: '26px 0 0' }}>We are a Student Project Team at the intersection of the Earth Sciences, Engineering, Data Science, and beyond, focused on monitoring the world around us. We are the only Cornell project team affiliated with both the College of Engineering and the Department of Earth and Atmospheric Sciences, giving our members a unique opportunity to pursue true scientific research, experience hands-on engineering prototyping, and initiate, manage, and lead their own projects.</p>
+        <p style={{ ...BODY, margin: '26px 0 0' }}>GeoData is the only Cornell project team affiliated with both the College of Engineering and the Department of Earth and Atmospheric Sciences. Members design the instruments, deploy them in the field, and run their own projects.</p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(420px,100%),1fr))', gap: 26, marginTop: 56 }}>
           {PROJECTS.map((proj) => (
@@ -205,19 +158,17 @@ export function HomePage() {
     </section>
 
     {/* TEAM PHOTO */}
-    <section id="team" style={{ position: 'relative', zIndex: 2, background: '#0e141c', padding: '48px clamp(24px,5vw,72px) 96px' }}>
+    <section id="team" style={{ position: 'relative', zIndex: 2, background: '#0e141c', padding: '48px clamp(24px,5vw,72px) 64px' }}>
       <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-        <figure style={{ margin: 0 }}>
-          <div className="team-photo-frame" style={{ position: 'relative', padding: 14, border: '2px solid #086727', boxShadow: '10px 10px 0 rgba(8,103,39,0.35)' }}>
-            <img loading="lazy" decoding="async" src="/team.webp" alt="The GeoData team on the stairs of Upson Hall" style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '1600/1066' }} />
-            <figcaption className="team-photo-caption" style={{ position: 'absolute', bottom: 30, left: 30, background: '#086727', color: '#eaf2ee', fontFamily: "'Intan',sans-serif", fontSize: 'clamp(16px,2.2vw,24px)', letterSpacing: '0.04em', padding: '10px 22px', whiteSpace: 'nowrap' }}>Team Photo '25 – '26</figcaption>
-          </div>
+        <figure style={{ margin: '0 auto', position: 'relative', maxWidth: 960 }}>
+          <img loading="lazy" decoding="async" src="/team.webp" alt="The GeoData team on the stairs of Upson Hall" style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '1600/1066' }} />
+          <figcaption className="team-photo-caption" style={{ position: 'absolute', bottom: 30, left: 30, background: '#086727', color: '#eaf2ee', fontFamily: "'Intan',sans-serif", fontSize: 'clamp(16px,2.2vw,24px)', letterSpacing: '0.04em', padding: '10px 22px', whiteSpace: 'nowrap' }}>Team Photo '25 – '26</figcaption>
         </figure>
       </div>
     </section>
 
     {/* JOIN */}
-    <section id="join" style={{ position: 'relative', zIndex: 2, background: '#0e141c', padding: '130px clamp(24px,5vw,72px)' }}>
+    <section id="join" style={{ position: 'relative', zIndex: 2, background: '#0e141c', padding: '104px clamp(24px,5vw,72px) 110px' }}>
       <div style={{ maxWidth: 820 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: RESIPLE, fontSize: 20, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#4fae7d' }}>
           {/* tethersonde stand-in for the usual "we're live" dot */}
@@ -233,14 +184,15 @@ export function HomePage() {
             <path d="M10 18 C 10 21, 8.5 22.5, 10 25" stroke="#4fae7d" strokeWidth="1.4" strokeLinecap="round" fill="none" />
             <rect x="7.5" y="25" width="5" height="5" stroke="#4fae7d" strokeWidth="1.6" />
           </svg>
-          Recruitment open
+          {open.length > 0 ? 'Recruitment open' : 'Recruitment opens each fall'}
         </div>
         <h2 style={{ fontFamily: MANTI, fontWeight: 700, fontSize: 'clamp(42px,6.2vw,80px)', letterSpacing: '-0.03em', lineHeight: 1, margin: '20px 0 0' }}>Design, Deploy,<br /><span style={{ color: '#4fae7d' }}>Discover</span></h2>
-        <p style={{ ...BODY, maxWidth: 560, margin: '26px 0 0' }}>Build the instruments a changing planet needs. GeoData welcomes students of every major, from CS and MechE to earth science and design. If you want to build hardware that ends up outdoors collecting real data, there's a subteam for you.</p>
+        <p style={{ ...BODY, maxWidth: 560, margin: '26px 0 0' }}>All majors welcome. Everybody has a place on one of the six subteams: Air, Water, Rock, Data, Tech, or Business.</p>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 38 }}>
-          <a href="https://docs.google.com/forms/d/e/1FAIpQLSfI87dxinWPeDd9aevwKjwfP0NtWR8uJDhHeD9qjdQPXV9oiA/viewform?usp=dialog" target="_blank" rel="noopener noreferrer" style={PILL_PRIMARY}>Upperclassmen Recruiting: DUE 9/3</a>
-          <a href="https://docs.google.com/forms/d/1u6mjjlEL9Y4fdN8RFB1K6jTpS7aYig-wt54i3YyhtS8/viewform" target="_blank" rel="noopener noreferrer" style={PILL}>Underclassmen Interest Form</a>
-          <a href="https://docs.google.com/spreadsheets/d/1ZYLfV6FjYPi1sL58lr9eAjuKM37q2tXTtEAOSyoPfpU/edit?usp=sharing" target="_blank" rel="noopener noreferrer" style={PILL}>Coffee Chat Contacts</a>
+          {open.map(({ track, due }, i) => (
+            <a key={track.track} href={track.form} target="_blank" rel="noopener noreferrer" style={i === 0 ? PILL_PRIMARY : PILL}>{track.formLabel}: DUE {shortDate(due.end)}</a>
+          ))}
+          {open.length > 0 && <a href={COFFEE_CHAT_SHEET} target="_blank" rel="noopener noreferrer" style={PILL}>Coffee Chat Contacts</a>}
         </div>
       </div>
     </section>
