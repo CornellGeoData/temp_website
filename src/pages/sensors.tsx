@@ -1220,7 +1220,7 @@ export function SensorsPage() {
       )}
       {/* ---- the forecast stage: light map + weather overlays, own launcher ---- */}
       {forecastView && (
-        <div className="forecast-stage" style={{ position: 'absolute', inset: 0, zIndex: 30 }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 30 }}>
           <ForecastView />
           <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 5 }}>
             <StageLauncher current={currentStage} onGo={goStage} />
