@@ -8,7 +8,7 @@ assert.equal(nearestFrame(frames(10), requested), 13);
 assert.equal(nearestFrame(frames(60), requested), 2);
 assert.equal(nearestFrame(frames(10), init - 60_000), 0);
 const layer = {kind: 'forecast', init: new Date(init).toISOString(), stale_minutes: 120, frames: frames(10)};
-assert.equal(freshness(layer, init + 130 * 60_000), 'Model update delayed');
+assert.equal(freshness(layer, init + 130 * 60_000), null);
 assert.equal(freshness(layer, init + 181 * 60_000), 'Forecast ended');
 assert.equal(freshness({...layer, kind:'obs'}, init + 130 * 60_000), 'Radar delayed');
 assert.equal(freshness(layer, init + 60 * 60_000), null);

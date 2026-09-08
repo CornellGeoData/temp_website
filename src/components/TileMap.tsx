@@ -28,7 +28,7 @@ const easeInOut = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t 
 
 export interface MapTarget { lat: number; lon: number; zoom: number; nonce: number }
 
-export default function TileMap({ sites, selectedIds, onSelect, target, initial, onView, dur = 1400, tileUrl = TILE_URL, attribution = ATTRIBUTION, minZ = MIN_Z, maxZ = MAX_Z, overlays, onPick, showLegend }: {
+export default function TileMap({ sites, selectedIds, onSelect, target, initial, onView, dur = 1400, tileUrl = TILE_URL, attribution = ATTRIBUTION, minZ = MIN_Z, maxZ = MAX_Z, overlays, studyBounds, onPick, showLegend }: {
   sites: GlobeSite[];
   selectedIds: string[];
   onSelect: (id: string) => void;
@@ -47,6 +47,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
   minZ?: number;
   maxZ?: number;
   overlays?: Overlay[];
+  studyBounds?: Overlay['bounds'];
   // a non-drag click on empty map reports its lat/lon - the Forecast View's
   // point probe. Clicks on pins still go to onSelect, never here.
   onPick?: (lat: number, lon: number) => void;
@@ -59,6 +60,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
   // opaque across re-renders (the set outlives the onLoad DOM write)
   const seen = useRef(new Set<string>()).current;
   const [view, setView] = useState(initial ?? { lat: target.lat, lon: target.lon, zoom: target.zoom });
+  const studyFitted = useRef(false);
   const viewRef = useRef(view);
   viewRef.current = view;
   // the pan/pinch handlers are attached once; they read the zoom bounds
@@ -76,9 +78,21 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
     return () => ro.disconnect();
   }, []);
 
+  // Fit the full study outline once, leaving room for the forecast controls.
+  useEffect(() => {
+    if (!studyBounds || !size.w || !size.h || studyFitted.current) return;
+    studyFitted.current = true;
+    const dx = lonToX(studyBounds.e, 0) - lonToX(studyBounds.w, 0);
+    const y0 = latToY(studyBounds.n, 0);
+    const y1 = latToY(studyBounds.s, 0);
+    const zoom = Math.log2(Math.min(Math.max(100, size.w - 64) / dx, Math.max(100, size.h - 250) / (y1 - y0)));
+    setView({ lon: (studyBounds.w + studyBounds.e) / 2, lat: yToLat((y0 + y1) / 2, 0), zoom: clamp(zoom, minZ, maxZ) });
+  }, [studyBounds, size, minZ, maxZ]);
+
   // ease to each new target rather than jumping, so arriving from the globe and
   // moving between sensors read as the same continuous descent
   useEffect(() => {
+    if (studyBounds && target.nonce === 0) return;
     const from = { ...viewRef.current };
     const t0 = performance.now();
     let raf = 0;
@@ -248,6 +262,20 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
               />
             );
           })}
+        </div>
+      )}
+
+      {studyBounds && (
+        <div aria-label="Study area boundary" style={{
+          position: 'absolute', pointerEvents: 'none', boxSizing: 'border-box',
+          left: (lonToX(studyBounds.w, Z) - cx) * scale + midX,
+          top: (latToY(studyBounds.n, Z) - cy) * scale + h / 2,
+          width: (lonToX(studyBounds.e, Z) - lonToX(studyBounds.w, Z)) * scale,
+          height: (latToY(studyBounds.s, Z) - latToY(studyBounds.n, Z)) * scale,
+          border: '2px solid #243a45', boxShadow: '0 0 0 1px rgba(255,255,255,0.9)',
+        }}>
+          <span style={{ position: 'absolute', left: 6, top: 6, padding: '3px 5px', background: 'rgba(255,255,255,0.9)',
+            color: '#243a45', fontFamily: RESIPLE, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Study area</span>
         </div>
       )}
 

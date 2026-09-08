@@ -17,6 +17,7 @@ const LIGHT_ATTR = 'Basemap: Esri. HRRR: NOAA via dynamical.org';
 
 // the larger Finger Lakes framing (fixed by decision; matches render_wx.py BBOX)
 const INITIAL_SMALL = window.matchMedia('(max-width: 720px)').matches;
+const STUDY_AREA = { n: 43.55, s: 41.95, w: -78.05, e: -75.15 };
 const HOME = { lat: 42.75, lon: -76.6, zoom: INITIAL_SMALL ? 8.2 : 9 };
 
 interface Frame { file: string; valid: string; data?: string }
@@ -157,11 +158,12 @@ export default function ForecastView() {
   }, [retry]);
 
   const layers = typeof manifest === 'object' ? manifest.layers.filter(l =>
-    !['stormcast_rain', 'stormcast_precip'].includes(l.id) && l.frames.length > 0) : [];
-  const layer = layers.find(l => l.id === layerId) ?? layers.find(l => l.id === 'radar_refc') ?? layers[0] ?? null;
+    !['stormcast_rain', 'stormcast_precip'].includes(l.id) && l.frames.length > 0)
+    .sort((a, b) => Number(b.id.endsWith('refc')) - Number(a.id.endsWith('refc'))) : [];
+  const layer = layers.find(l => l.id === layerId) ?? layers.find(l => l.id === 'stormcast_refc') ?? layers.find(l => l.id === 'radar_refc') ?? layers[0] ?? null;
   const groupOf = (l: WxLayer) => l.group ??
     (l.source.includes('StormScope') ? 'Nowcast' : l.source.includes('StormCast') ? 'StormCast' : 'HRRR');
-  const GROUP_ORDER = ['Nowcast', 'StormCast', 'HRRR'];
+  const GROUP_ORDER = ['StormCast', 'Nowcast', 'HRRR'];
   const groups = [...new Set(layers.map(groupOf))].sort((a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b));
   const [openGroup, setOpenGroup] = useState<string | null | undefined>(undefined);
   const shownGroup = openGroup === undefined ? (layer ? groupOf(layer) : null) : openGroup;
@@ -186,10 +188,10 @@ export default function ForecastView() {
     return () => { alive = false; clearTimeout(timeout); };
   }, [layer, selectedFrame, idx, retry]);
 
-  const overlays: Overlay[] = ready
-    ? [{ url: `${WX_BASE}/${ready.frame.file}`, bounds: ready.layer.bounds, opacity: ready.layer.opacity }]
+  const displayed = ready?.layer.id === layer?.id ? ready : null;
+  const overlays: Overlay[] = displayed
+    ? [{ url: `${WX_BASE}/${displayed.frame.file}`, bounds: displayed.layer.bounds, opacity: displayed.layer.opacity }]
     : [];
-  const imageLoading = !!selectedFrame && (ready?.frame.file !== selectedFrame.file || ready?.layer.id !== layer?.id);
   const stale = layer ? freshness(layer, now) : null;
 
   // the map wants a target; the forecast stage just parks on the region
@@ -198,8 +200,8 @@ export default function ForecastView() {
   // the number under the probe for the active layer+frame; fetches the frame's
   // value grid on demand and caches it, so scrubbing re-reads instantly
   const valueAt = (lat: number, lon: number): string => {
-    const meta = ready?.layer.values;
-    const data = ready?.frame.data;
+    const meta = displayed?.layer.values;
+    const data = displayed?.frame.data;
     if (!meta || !data) return '–';
     const url = `${WX_BASE}/${data}`;
     const hit = valueCache.get(url);
@@ -246,6 +248,7 @@ export default function ForecastView() {
         minZ={5}
         maxZ={15}
         overlays={overlays}
+        studyBounds={STUDY_AREA}
       />
 
       {/* top-left: the layer picker, with the run provenance as a footnote
@@ -266,7 +269,10 @@ export default function ForecastView() {
             <>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {groups.map((g) => (
-                  <button key={g} aria-expanded={shownGroup === g} onClick={() => setOpenGroup(shownGroup === g ? null : g)} style={chip(shownGroup === g)}>
+                  <button key={g} aria-expanded={shownGroup === g} onClick={() => {
+                    setOpenGroup(shownGroup === g ? null : g);
+                    if (shownGroup !== g) setLayerId(layers.find(l => groupOf(l) === g)?.id ?? null);
+                  }} style={chip(shownGroup === g)}>
                     {g} {shownGroup === g ? '▾' : '▸'}
                   </button>
                 ))}
@@ -292,24 +298,23 @@ export default function ForecastView() {
             {layer.accumulation_start && <div style={{ marginTop: 5 }}>Accumulated from {fmtInit(layer.accumulation_start)}</div>}
           </div>
         )}
-        {(refreshError || imageLoading || imageError) && (
-          <div role="status" style={{ ...PANEL, padding: '7px 10px', fontSize: 11, maxWidth: 380 }}>
-            {refreshError ? 'Feed refresh failed. Retrying automatically.' : imageError ? 'This frame could not be loaded.' : 'Loading selected frame…'}
-            {imageLoading && ready && <div style={{ marginTop: 4 }}>Showing {ready.layer.label}, {fmtValid(ready.frame.valid)}</div>}
-            {(imageError || refreshError) && <button onClick={() => { valueCache.clear(); setRetry(n => n + 1); }} style={{ marginLeft: 8 }}>Retry</button>}
+        {(refreshError || imageError) && (
+          <div role="status" style={{ fontFamily: RESIPLE, color: '#3d4a55', textShadow: HALO, fontSize: 11 }}>
+            {refreshError ? 'Feed refresh failed.' : 'This frame is unavailable.'}{' '}
+            <button onClick={() => { valueCache.clear(); setRetry(n => n + 1); }} style={{ appearance: 'none', background: 'none', border: 0, color: 'inherit', font: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}>Retry</button>
           </div>
         )}
         {typeof manifest === 'object' && manifest.status?.degraded && layer && groupOf(layer) === 'Nowcast' && (
-          <div role="status" style={{ ...PANEL, padding: '7px 10px', fontSize: 11 }}>Live radar input is delayed or incomplete.</div>
+          <div role="status" style={{ fontFamily: RESIPLE, color: '#3d4a55', textShadow: HALO, fontSize: 11 }}>Live radar input is delayed or incomplete.</div>
         )}
       </div>
 
       {/* right side: the active layer's colour scale, straight on the map,
           centred vertically now that the launcher opens as a panel, not a
           dropdown that could reach it */}
-      {ready?.layer.scale && (
+      {displayed?.layer.scale && (
         <div style={{ position: 'absolute', right: small ? 14 : 26, top: '50%', transform: 'translateY(-50%)', zIndex: 4, pointerEvents: 'none' }}>
-          <ColorScale small={small} scale={ready.layer.scale} />
+          <ColorScale small={small} scale={displayed.layer.scale} />
         </div>
       )}
 
@@ -328,8 +333,16 @@ export default function ForecastView() {
               aria-valuetext={fmtValid(layer.frames[idx].valid)}
               style={{ flex: 1, minWidth: 0, accentColor: '#e6ecf0' }}
             />
-            <button onClick={() => setRequestedTime(null)} style={{ color: '#e6ecf0', background: 'transparent', border: '1px solid #8fa0ab', cursor: 'pointer', padding: '3px 6px' }}>Now</button>
-            <span style={{ fontSize: 12, whiteSpace: 'nowrap', minWidth: small ? 74 : 92, textAlign: 'right' }}>{fmtValid(layer.frames[idx].valid)}</span>
+            <button
+              onClick={() => { setNow(Date.now()); setRequestedTime(null); }}
+              aria-pressed={requestedTime === null}
+              title="Show the forecast nearest the current time"
+              style={{ appearance: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                minWidth: 52, minHeight: 32, padding: '5px 10px', fontFamily: RESIPLE, fontSize: 11, letterSpacing: '0.08em',
+                textTransform: 'uppercase', color: requestedTime === null ? '#0e141c' : '#e6ecf0',
+                background: requestedTime === null ? '#e6ecf0' : 'transparent', border: '1px solid #8fa0ab', cursor: 'pointer' }}
+            >Now</button>
+            <span style={{ fontSize: 12, whiteSpace: 'nowrap', minWidth: small ? 74 : 92, textAlign: 'right' }}>{fmtValid(displayed?.frame.valid ?? layer.frames[idx].valid)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#8fa0ab', marginTop: 3 }}>
             <span>{fmtValid(layer.frames[0].valid)}</span>
@@ -344,13 +357,8 @@ export default function ForecastView() {
         </div>
       )}
 
-      {manifest === 'loading' && (
-        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 4, ...PANEL, padding: '10px 16px', fontSize: 13 }}>
-          Loading the forecast&hellip;
-        </div>
-      )}
       {(manifest === 'error' || (typeof manifest === 'object' && layers.length === 0)) && (
-        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 4, ...PANEL, padding: '10px 16px', fontSize: 13 }}>
+        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 4, fontFamily: RESIPLE, color: '#3d4a55', textShadow: HALO, fontSize: 13 }}>
           The forecast feed could not be loaded. Retrying automatically.
         </div>
       )}

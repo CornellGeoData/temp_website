@@ -18,5 +18,5 @@ export function freshness(layer: WeatherClock, now: number): string | null {
   if (layer.kind === 'forecast' && now > end) return 'Forecast ended';
   const due = layer.expected_update_at ? Date.parse(layer.expected_update_at)
     : Date.parse(layer.init ?? layer.frames[0]?.valid ?? '') + layer.stale_minutes * 60_000;
-  return now > due ? (layer.kind === 'obs' ? 'Radar delayed' : 'Model update delayed') : null;
+  return layer.kind === 'obs' && now > due ? 'Radar delayed' : null;
 }
