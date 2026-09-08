@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node compress.mjs",
-    "lint": "oxlint",
     "preview": "vite preview",
     "start": "node server.mjs"
   },
@@ -21,7 +20,6 @@
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.150.1",
     "@vitejs/plugin-react": "^6.0.3",
-    "oxlint": "^1.71.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.1"
   }
