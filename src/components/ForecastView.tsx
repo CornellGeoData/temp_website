@@ -15,9 +15,8 @@ const LIGHT_TILES = (z: number, x: number, y: number) =>
   `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${z}/${y}/${x}`;
 const LIGHT_ATTR = 'Basemap: Esri. HRRR: NOAA via dynamical.org';
 
-// the larger Finger Lakes framing (fixed by decision; matches render_wx.py BBOX)
+// Initial position before the selected feed's full grid arrives.
 const INITIAL_SMALL = window.matchMedia('(max-width: 720px)').matches;
-const STUDY_AREA = { n: 43.55, s: 41.95, w: -78.05, e: -75.15 };
 const HOME = { lat: 42.75, lon: -76.6, zoom: INITIAL_SMALL ? 8.2 : 9 };
 
 interface Frame { file: string; valid: string; data?: string }
@@ -48,6 +47,7 @@ interface WxLayer {
   accumulation_start?: string;
   opacity: number;
   bounds: { n: number; s: number; w: number; e: number };
+  tiles?: { width: number; height: number; size: number };
   scale?: Scale;
   values?: ValuesMeta;
   frames: Frame[];
@@ -161,9 +161,9 @@ export default function ForecastView() {
     !['stormcast_rain', 'stormcast_precip'].includes(l.id) && l.frames.length > 0)
     .sort((a, b) => Number(b.id.endsWith('refc')) - Number(a.id.endsWith('refc'))) : [];
   const layer = layers.find(l => l.id === layerId) ?? layers.find(l => l.id === 'stormcast_refc') ?? layers.find(l => l.id === 'radar_refc') ?? layers[0] ?? null;
-  const groupOf = (l: WxLayer) => l.group ??
+  const groupOf = (l: WxLayer) => l.id === 'radar_refc' ? 'MRMS' : l.group ??
     (l.source.includes('StormScope') ? 'Nowcast' : l.source.includes('StormCast') ? 'StormCast' : 'HRRR');
-  const GROUP_ORDER = ['StormCast', 'Nowcast', 'HRRR'];
+  const GROUP_ORDER = ['StormCast', 'Nowcast', 'MRMS', 'HRRR'];
   const groups = [...new Set(layers.map(groupOf))].sort((a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b));
   const [openGroup, setOpenGroup] = useState<string | null | undefined>(undefined);
   const shownGroup = openGroup === undefined ? (layer ? groupOf(layer) : null) : openGroup;
@@ -190,7 +190,8 @@ export default function ForecastView() {
 
   const displayed = ready?.layer.id === layer?.id ? ready : null;
   const overlays: Overlay[] = displayed
-    ? [{ url: `${WX_BASE}/${displayed.frame.file}`, bounds: displayed.layer.bounds, opacity: displayed.layer.opacity }]
+    ? [{ url: `${WX_BASE}/${displayed.frame.file}`, bounds: displayed.layer.bounds, opacity: displayed.layer.opacity,
+      tiles: displayed.layer.tiles ? { ...displayed.layer.tiles, baseUrl: `${WX_BASE}/${displayed.frame.file.replace(/\.webp$/, '')}` } : undefined }]
     : [];
   const stale = layer ? freshness(layer, now) : null;
 
@@ -209,7 +210,11 @@ export default function ForecastView() {
     if (hit === undefined) {
       valueCache.set(url, 'pending');
       fetch(url)
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((r) => {
+          if (!r.ok) throw new Error(String(r.status));
+          return data.endsWith('.gz') && r.body
+            ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json() : r.json();
+        })
         .then((j: { v: (number | null)[] }) => { valueCache.set(url, j.v); bump((n) => n + 1); })
         .catch(() => { valueCache.set(url, 'failed'); bump((n) => n + 1); });
       return '…';
@@ -245,10 +250,10 @@ export default function ForecastView() {
         dur={1}
         tileUrl={LIGHT_TILES}
         attribution={LIGHT_ATTR}
-        minZ={5}
+        minZ={2}
         maxZ={15}
         overlays={overlays}
-        studyBounds={STUDY_AREA}
+        gridBounds={layer?.bounds}
       />
 
       {/* top-left: the layer picker, with the run provenance as a footnote
@@ -304,7 +309,7 @@ export default function ForecastView() {
             <button onClick={() => { valueCache.clear(); setRetry(n => n + 1); }} style={{ appearance: 'none', background: 'none', border: 0, color: 'inherit', font: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}>Retry</button>
           </div>
         )}
-        {typeof manifest === 'object' && manifest.status?.degraded && layer && groupOf(layer) === 'Nowcast' && (
+        {typeof manifest === 'object' && manifest.status?.degraded && layer && ['Nowcast', 'MRMS'].includes(groupOf(layer)) && (
           <div role="status" style={{ fontFamily: RESIPLE, color: '#3d4a55', textShadow: HALO, fontSize: 11 }}>Live radar input is delayed or incomplete.</div>
         )}
       </div>
