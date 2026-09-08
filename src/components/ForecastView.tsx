@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import TileMap, { type MapTarget, type Overlay } from './TileMap';
 import { type GlobeSite } from '../lib/sites';
 import { RESIPLE } from '../styles/theme';
+import { nearestFrame, freshness } from '../lib/weather';
 
-// The weather feed: rendered on the lab's DGX Spark every 6 hours and
+// The weather feed: rendered on the lab's DGX Spark and
 // force-pushed to the geodata-wx repo's gh-pages branch. Served with open
 // CORS, so dev and prod both read it live - no local sync needed.
-const WX_BASE = 'https://cornellgeodata.github.io/geodata-wx';
+const WX_BASE = import.meta.env.VITE_WX_BASE || 'https://cornellgeodata.github.io/geodata-wx';
 
 // Esri's light-gray canvas: keyless like the imagery layer, white enough that
 // conventional weather colors carry all the meaning. Levels stop at 16.
@@ -15,8 +16,8 @@ const LIGHT_TILES = (z: number, x: number, y: number) =>
 const LIGHT_ATTR = 'Basemap: Esri. HRRR: NOAA via dynamical.org';
 
 // the larger Finger Lakes framing (fixed by decision; matches render_wx.py BBOX)
-const SMALL = window.matchMedia('(max-width: 720px)').matches;
-const HOME = { lat: 42.75, lon: -76.6, zoom: SMALL ? 8.2 : 9 };
+const INITIAL_SMALL = window.matchMedia('(max-width: 720px)').matches;
+const HOME = { lat: 42.75, lon: -76.6, zoom: INITIAL_SMALL ? 8.2 : 9 };
 
 interface Frame { file: string; valid: string; data?: string }
 // per-layer regular grid of point values (row 0 = north edge, row-major),
@@ -40,6 +41,10 @@ interface WxLayer {
   kind: 'obs' | 'forecast';
   init: string | null;
   stale_minutes: number;
+  group?: string;
+  expected_update_at?: string;
+  valid_until?: string;
+  accumulation_start?: string;
   opacity: number;
   bounds: { n: number; s: number; w: number; e: number };
   scale?: Scale;
@@ -51,10 +56,10 @@ interface WxLayer {
 // reads on the light basemap and any overlay alike. Vertical, highest value
 // at the top, numbers inboard of the bar.
 const HALO = '0 0 4px rgba(255,255,255,0.95), 0 0 2px rgba(255,255,255,0.9)';
-function ColorScale({ scale }: { scale: Scale }) {
+function ColorScale({ scale, small }: { scale: Scale; small: boolean }) {
   // the bar shrinks on short windows so the key clears the launcher button
   // above and the timebar below
-  const H = Math.max(160, Math.min(SMALL ? 230 : 300, window.innerHeight - 260));
+  const H = Math.max(160, Math.min(small ? 230 : 300, window.innerHeight - 260));
   const ring = '0 0 0 1px rgba(255,255,255,0.9), 0 1px 4px rgba(0,0,0,0.5)';
   let bar = null;
   let ticks: { frac: number; v: number }[] = [];
@@ -88,12 +93,11 @@ function ColorScale({ scale }: { scale: Scale }) {
         {bar}
       </div>
       {/* caption stays horizontal under the bar, right-aligned to the edge */}
-      {/* "since init" is obvious for an accumulation layer - drop it */}
-      <div style={{ fontSize: 10, letterSpacing: '0.05em', color: '#0e141c', textShadow: HALO, marginTop: 7, maxWidth: 130, textAlign: 'right' }}>{scale.label.replace(' since init', '')}</div>
+      <div style={{ fontSize: 10, letterSpacing: '0.05em', color: '#0e141c', textShadow: HALO, marginTop: 7, maxWidth: 130, textAlign: 'right' }}>{scale.label}</div>
     </div>
   );
 }
-interface Manifest { version: number; generated: string; layers: WxLayer[] }
+interface Manifest { version: number; generated: string; layers: WxLayer[]; status?: { degraded?: boolean; reason?: string } }
 
 const PANEL: React.CSSProperties = {
   background: 'rgba(14,20,28,0.82)', backdropFilter: 'blur(6px)',
@@ -106,9 +110,21 @@ const fmtValid = (iso: string) =>
 const fmtInit = (iso: string) => fmtValid(iso);
 
 export default function ForecastView() {
+  const [small, setSmall] = useState(INITIAL_SMALL);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 720px)');
+    const resize = () => setSmall(media.matches);
+    media.addEventListener('change', resize);
+    return () => media.removeEventListener('change', resize);
+  }, []);
   const [manifest, setManifest] = useState<Manifest | 'loading' | 'error'>('loading');
   const [layerId, setLayerId] = useState<string | null>(null);
-  const [frame, setFrame] = useState(0);
+  const [requestedTime, setRequestedTime] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now);
+  const [refreshError, setRefreshError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [ready, setReady] = useState<{ layer: WxLayer; frame: Frame } | null>(null);
+  const [imageError, setImageError] = useState(false);
   // the point probe: click the map to pin it, click the pin to clear it. It
   // survives layer switches and scrubbing, so you can watch one spot evolve.
   const [probe, setProbe] = useState<{ lat: number; lon: number } | null>(null);
@@ -117,47 +133,64 @@ export default function ForecastView() {
 
   useEffect(() => {
     let alive = true;
-    fetch(`${WX_BASE}/latest.json`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((m: Manifest) => {
-        if (!alive) return;
-        setManifest(m);
-        setLayerId(m.layers[0]?.id ?? null);
-      })
-      .catch(() => alive && setManifest('error'));
-    return () => { alive = false; };
-  }, []);
+    let fetching = false;
+    const refresh = async () => {
+      if (fetching || document.hidden) return;
+      fetching = true;
+      try {
+        const response = await fetch(`${WX_BASE}/latest.json`, { cache: 'no-cache', signal: AbortSignal.timeout(15_000) });
+        if (!response.ok) throw new Error(String(response.status));
+        const m: Manifest = await response.json();
+        if (!Array.isArray(m.layers) || !m.layers.every(l => Array.isArray(l.frames))) throw new Error('Invalid weather feed');
+        if (alive) { setManifest(m); setRefreshError(false); }
+      } catch {
+        if (alive) {
+          setRefreshError(true);
+          setManifest(previous => typeof previous === 'object' ? previous : 'error');
+        }
+      } finally { fetching = false; }
+    };
+    void refresh();
+    const interval = window.setInterval(() => { setNow(Date.now()); void refresh(); }, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { alive = false; clearInterval(interval); document.removeEventListener('visibilitychange', refresh); };
+  }, [retry]);
 
-  // StormCast shows accumulated precip only; its rain-rate twin is published
-  // but not offered here
-  const layers = typeof manifest === 'object' ? manifest.layers.filter((l) => l.id !== 'stormcast_rain') : [];
-  const layer = layers.find((l) => l.id === layerId) ?? null;
-  // the picker is two tiers: a model chip (Nowcast / StormCast / HRRR) that
-  // opens to its layers. undefined = follow whichever model the current layer
-  // is from. Nowcast = the StormScope 0-6h radar lane (10-min frames).
-  const groupOf = (l: WxLayer) =>
-    l.source.includes('StormScope') ? 'Nowcast' : l.source.includes('StormCast') ? 'StormCast' : 'HRRR';
-  // chips in freshness order regardless of manifest order
+  const layers = typeof manifest === 'object' ? manifest.layers.filter(l =>
+    !['stormcast_rain', 'stormcast_precip'].includes(l.id) && l.frames.length > 0) : [];
+  const layer = layers.find(l => l.id === layerId) ?? layers.find(l => l.id === 'radar_refc') ?? layers[0] ?? null;
+  const groupOf = (l: WxLayer) => l.group ??
+    (l.source.includes('StormScope') ? 'Nowcast' : l.source.includes('StormCast') ? 'StormCast' : 'HRRR');
   const GROUP_ORDER = ['Nowcast', 'StormCast', 'HRRR'];
   const groups = [...new Set(layers.map(groupOf))].sort((a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b));
   const [openGroup, setOpenGroup] = useState<string | null | undefined>(undefined);
   const shownGroup = openGroup === undefined ? (layer ? groupOf(layer) : null) : openGroup;
-  // scrub position survives layer switches (compare the same hour across
-  // variables); clamped for layers with fewer frames, like radar's single one
-  const idx = layer ? Math.min(frame, layer.frames.length - 1) : 0;
+  const idx = layer ? nearestFrame(layer.frames, requestedTime ?? now) : 0;
+  const selectedFrame = layer?.frames[idx];
 
-  // warm the browser cache so scrubbing never flashes white
   useEffect(() => {
-    layer?.frames.forEach((f) => { new Image().src = `${WX_BASE}/${f.file}`; });
-  }, [layer]);
+    if (!layer || !selectedFrame) return;
+    let alive = true;
+    const img = new Image();
+    setImageError(false);
+    const timeout = window.setTimeout(() => { if (alive) setImageError(true); }, 15_000);
+    img.src = `${WX_BASE}/${selectedFrame.file}`;
+    void img.decode().then(() => {
+      if (!alive) return;
+      clearTimeout(timeout);
+      setImageError(false);
+      setReady({ layer, frame: selectedFrame });
+      // Only warm the next two frames. A 49-hour layer should not download on selection.
+      layer.frames.slice(idx + 1, idx + 3).forEach(f => { new Image().src = `${WX_BASE}/${f.file}`; });
+    }).catch(() => { if (alive) setImageError(true); });
+    return () => { alive = false; clearTimeout(timeout); };
+  }, [layer, selectedFrame, idx, retry]);
 
-  const overlays: Overlay[] = layer
-    ? [{ url: `${WX_BASE}/${layer.frames[idx].file}`, bounds: layer.bounds, opacity: layer.opacity }]
+  const overlays: Overlay[] = ready
+    ? [{ url: `${WX_BASE}/${ready.frame.file}`, bounds: ready.layer.bounds, opacity: ready.layer.opacity }]
     : [];
-
-  const stale = typeof manifest === 'object' && layer
-    ? Date.now() - Date.parse(manifest.generated) > layer.stale_minutes * 60_000
-    : false;
+  const imageLoading = !!selectedFrame && (ready?.frame.file !== selectedFrame.file || ready?.layer.id !== layer?.id);
+  const stale = layer ? freshness(layer, now) : null;
 
   // the map wants a target; the forecast stage just parks on the region
   const target = useRef<MapTarget>({ ...HOME, nonce: 0 }).current;
@@ -165,11 +198,12 @@ export default function ForecastView() {
   // the number under the probe for the active layer+frame; fetches the frame's
   // value grid on demand and caches it, so scrubbing re-reads instantly
   const valueAt = (lat: number, lon: number): string => {
-    const meta = layer?.values;
-    const data = layer?.frames[idx]?.data;
+    const meta = ready?.layer.values;
+    const data = ready?.frame.data;
     if (!meta || !data) return '–';
     const url = `${WX_BASE}/${data}`;
     const hit = valueCache.get(url);
+    if (hit === undefined && valueCache.size > 12) valueCache.delete(valueCache.keys().next().value!);
     if (hit === undefined) {
       valueCache.set(url, 'pending');
       fetch(url)
@@ -216,11 +250,11 @@ export default function ForecastView() {
 
       {/* top-left: the layer picker, with the run provenance as a footnote
           under it rather than a title bar */}
-      <div style={{ position: 'absolute', top: SMALL ? 18 : 24, left: SMALL ? 12 : 24, zIndex: 4, display: 'flex', flexDirection: 'column', gap: 7, maxWidth: SMALL ? 'calc(100vw - 74px)' : 'calc(100% - 110px)' }}>
+      <div style={{ position: 'absolute', top: small ? 18 : 24, left: small ? 12 : 24, zIndex: 4, display: 'flex', flexDirection: 'column', gap: 7, maxWidth: small ? 'calc(100vw - 74px)' : 'calc(100% - 110px)' }}>
         {layers.length > 0 && (() => {
           const chip = (active: boolean): React.CSSProperties => ({
             ...PANEL, appearance: 'none', cursor: 'pointer', padding: '6px 11px',
-            fontSize: 11.5, letterSpacing: '0.1em', textTransform: 'uppercase',
+            minHeight: 36, fontSize: 11.5, letterSpacing: '0.1em', textTransform: 'uppercase',
             whiteSpace: 'nowrap', flexShrink: 0,
             background: active ? '#e6ecf0' : (PANEL.background as string),
             color: active ? '#0e141c' : '#e6ecf0',
@@ -230,18 +264,18 @@ export default function ForecastView() {
           });
           return (
             <>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {groups.map((g) => (
-                  <button key={g} onClick={() => setOpenGroup(shownGroup === g ? null : g)} style={chip(shownGroup === g)}>
+                  <button key={g} aria-expanded={shownGroup === g} onClick={() => setOpenGroup(shownGroup === g ? null : g)} style={chip(shownGroup === g)}>
                     {g} {shownGroup === g ? '▾' : '▸'}
                   </button>
                 ))}
               </div>
               {shownGroup && (
                 // phones: one row swiped sideways; the cut-off chip at the edge is the scroll affordance
-                <div style={{ display: 'flex', gap: 6, ...(SMALL ? { overflowX: 'auto' as const, scrollbarWidth: 'none' as const, paddingBottom: 2 } : { flexWrap: 'wrap' as const }) }}>
+                <div style={{ display: 'flex', gap: 6, ...(small ? { overflowX: 'auto' as const, scrollbarWidth: 'none' as const, paddingBottom: 2 } : { flexWrap: 'wrap' as const }) }}>
                   {layers.filter((l) => groupOf(l) === shownGroup).map((l) => (
-                    <button key={l.id} onClick={() => setLayerId(l.id)} style={chip(l.id === layerId)}>
+                    <button key={l.id} onClick={() => setLayerId(l.id)} aria-pressed={l.id === layer?.id} style={chip(l.id === layer?.id)}>
                       {l.label.replace(new RegExp(`^${groupOf(l)} `), '')}
                     </button>
                   ))}
@@ -252,26 +286,36 @@ export default function ForecastView() {
         })()}
         {layer && (
           <div style={{ fontFamily: RESIPLE, fontSize: 10.5, letterSpacing: '0.06em', color: stale ? '#8a5f10' : '#3d4a55', textShadow: HALO }}>
-            {/* the manifest's source strings carry separator dots; the line
-                rendered here stays plain: name, then the init cycle */}
-            Forecast: {layer.source.includes('StormScope') ? 'Local StormScope nowcast' : layer.source.includes('StormCast') ? 'Local StormCast run' : layer.source.replace(/\s*·\s*/g, ', ')}
-            {layer.kind === 'forecast' && layer.init ? `, init ${fmtInit(layer.init)}` : ''}
+            {layer.kind === 'obs' ? 'Observed: NOAA MRMS radar' : `Forecast: ${layer.source.replace(/\s*·\s*/g, ', ')}`}
+            {layer.init ? ` · ${layer.kind === 'obs' ? 'observed' : 'initialized'} ${fmtInit(layer.init)}` : ''}
+            {stale && <strong style={{ display: 'block', color: '#8a4d00', marginTop: 5 }}>{stale}</strong>}
+            {layer.accumulation_start && <div style={{ marginTop: 5 }}>Accumulated from {fmtInit(layer.accumulation_start)}</div>}
           </div>
+        )}
+        {(refreshError || imageLoading || imageError) && (
+          <div role="status" style={{ ...PANEL, padding: '7px 10px', fontSize: 11, maxWidth: 380 }}>
+            {refreshError ? 'Feed refresh failed. Retrying automatically.' : imageError ? 'This frame could not be loaded.' : 'Loading selected frame…'}
+            {imageLoading && ready && <div style={{ marginTop: 4 }}>Showing {ready.layer.label}, {fmtValid(ready.frame.valid)}</div>}
+            {(imageError || refreshError) && <button onClick={() => { valueCache.clear(); setRetry(n => n + 1); }} style={{ marginLeft: 8 }}>Retry</button>}
+          </div>
+        )}
+        {typeof manifest === 'object' && manifest.status?.degraded && layer && groupOf(layer) === 'Nowcast' && (
+          <div role="status" style={{ ...PANEL, padding: '7px 10px', fontSize: 11 }}>Live radar input is delayed or incomplete.</div>
         )}
       </div>
 
       {/* right side: the active layer's colour scale, straight on the map,
           centred vertically now that the launcher opens as a panel, not a
           dropdown that could reach it */}
-      {layer?.scale && (
-        <div style={{ position: 'absolute', right: SMALL ? 14 : 26, top: '50%', transform: 'translateY(-50%)', zIndex: 4, pointerEvents: 'none' }}>
-          <ColorScale scale={layer.scale} />
+      {ready?.layer.scale && (
+        <div style={{ position: 'absolute', right: small ? 14 : 26, top: '50%', transform: 'translateY(-50%)', zIndex: 4, pointerEvents: 'none' }}>
+          <ColorScale small={small} scale={ready.layer.scale} />
         </div>
       )}
 
       {/* bottom-center: the timebar - a native range input is the whole widget */}
       {layer && layer.frames.length > 1 && (
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: SMALL ? 30 : 34, zIndex: 4, ...PANEL, padding: '10px 16px', width: 'min(560px, calc(100vw - 32px))' }}>
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: small ? 30 : 34, zIndex: 4, ...PANEL, padding: '10px 16px', width: 'min(560px, calc(100vw - 32px))' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <input
               type="range"
@@ -279,11 +323,13 @@ export default function ForecastView() {
               max={layer.frames.length - 1}
               step={1}
               value={idx}
-              onChange={(e) => setFrame(Number(e.target.value))}
-              aria-label="Forecast hour"
-              style={{ flex: 1, accentColor: '#e6ecf0' }}
+              onChange={(e) => setRequestedTime(Date.parse(layer.frames[Number(e.target.value)].valid))}
+              aria-label="Forecast valid time"
+              aria-valuetext={fmtValid(layer.frames[idx].valid)}
+              style={{ flex: 1, minWidth: 0, accentColor: '#e6ecf0' }}
             />
-            <span style={{ fontSize: 12, whiteSpace: 'nowrap', minWidth: SMALL ? 74 : 92, textAlign: 'right' }}>{fmtValid(layer.frames[idx].valid)}</span>
+            <button onClick={() => setRequestedTime(null)} style={{ color: '#e6ecf0', background: 'transparent', border: '1px solid #8fa0ab', cursor: 'pointer', padding: '3px 6px' }}>Now</button>
+            <span style={{ fontSize: 12, whiteSpace: 'nowrap', minWidth: small ? 74 : 92, textAlign: 'right' }}>{fmtValid(layer.frames[idx].valid)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#8fa0ab', marginTop: 3 }}>
             <span>{fmtValid(layer.frames[0].valid)}</span>
@@ -293,7 +339,7 @@ export default function ForecastView() {
       )}
       {/* single-frame layers (radar) get the valid time where the bar would be */}
       {layer && layer.frames.length === 1 && (
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: SMALL ? 30 : 34, zIndex: 4, ...PANEL, padding: '8px 14px', fontSize: 12 }}>
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: small ? 30 : 34, zIndex: 4, ...PANEL, padding: '8px 14px', fontSize: 12 }}>
           {fmtValid(layer.frames[0].valid)}{stale && <span style={{ color: '#d9a13c' }}> (stale)</span>}
         </div>
       )}
@@ -305,7 +351,7 @@ export default function ForecastView() {
       )}
       {(manifest === 'error' || (typeof manifest === 'object' && layers.length === 0)) && (
         <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 4, ...PANEL, padding: '10px 16px', fontSize: 13 }}>
-          The forecast feed could not be loaded. Reload the page to try again.
+          The forecast feed could not be loaded. Retrying automatically.
         </div>
       )}
     </div>

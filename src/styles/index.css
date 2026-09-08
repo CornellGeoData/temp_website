@@ -340,3 +340,6 @@ details[open] > summary .chev::before {
     padding: 84px 24px !important;
   }
 }
+/* Forecast controls sit below the fixed site navigation. */
+.forecast-stage { top: 102px !important; }
+@media (max-width: 720px) { .forecast-stage { top: 60px !important; } }
