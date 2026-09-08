@@ -210,7 +210,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
         const url = tileUrl(lvl, wx, y);
         out.push(
           <img
-            key={`${lvl}/${wx}/${y}`}
+            key={`${lvl}/${x}/${y}`}
             src={url}
             alt=""
             draggable={false}
