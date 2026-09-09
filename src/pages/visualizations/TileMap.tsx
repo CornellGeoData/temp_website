@@ -27,7 +27,7 @@ const easeInOut = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t 
 
 export interface MapTarget { lat: number; lon: number; zoom: number; nonce: number }
 
-export default function TileMap({ sites, selectedIds, onSelect, target, initial, onView, dur = 1400, tileUrl = TILE_URL, attribution = ATTRIBUTION, minZ = MIN_Z, maxZ = MAX_Z, overlays, onPick, showLegend }: {
+export default function TileMap({ sites, selectedIds, onSelect, target, initial, onView, dur = 1400, tileUrl = TILE_URL, attribution = ATTRIBUTION, minZ = MIN_Z, maxZ = MAX_Z, overlays, gridBounds, onPick, showLegend }: {
   sites: MapSite[];
   selectedIds: string[];
   onSelect: (id: string) => void;
@@ -46,6 +46,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
   minZ?: number;
   maxZ?: number;
   overlays?: Overlay[];
+  gridBounds?: Overlay['bounds'];
   // a non-drag click on empty map reports its lat/lon - the Forecast View's
   // point probe. Clicks on pins still go to onSelect, never here.
   onPick?: (lat: number, lon: number) => void;
@@ -58,6 +59,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
   // opaque across re-renders (the set outlives the onLoad DOM write)
   const seen = useRef(new Set<string>()).current;
   const [view, setView] = useState(initial ?? { lat: target.lat, lon: target.lon, zoom: target.zoom });
+  const fittedGrid = useRef('');
   const viewRef = useRef(view);
   viewRef.current = view;
   // the pan/pinch handlers are attached once; they read the zoom bounds
@@ -75,9 +77,23 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
     return () => ro.disconnect();
   }, []);
 
+  // Refit when the source domain changes, leaving room for forecast controls.
+  useEffect(() => {
+    if (!gridBounds || !size.w || !size.h) return;
+    const key = [gridBounds.n, gridBounds.s, gridBounds.w, gridBounds.e, size.w, size.h].join(',');
+    if (fittedGrid.current === key) return;
+    fittedGrid.current = key;
+    const dx = lonToX(gridBounds.e, 0) - lonToX(gridBounds.w, 0);
+    const y0 = latToY(gridBounds.n, 0);
+    const y1 = latToY(gridBounds.s, 0);
+    const zoom = Math.log2(Math.min(Math.max(100, size.w - 64) / dx, Math.max(100, size.h - 250) / (y1 - y0)));
+    setView({ lon: (gridBounds.w + gridBounds.e) / 2, lat: yToLat((y0 + y1) / 2, 0), zoom: clamp(zoom, minZ, maxZ) });
+  }, [gridBounds, size, minZ, maxZ]);
+
   // ease to each new target rather than jumping, so arriving from the globe and
   // moving between sensors read as the same continuous descent
   useEffect(() => {
+    if (gridBounds && target.nonce === 0) return;
     const from = { ...viewRef.current };
     const t0 = performance.now();
     let raf = 0;
@@ -192,7 +208,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
         const url = tileUrl(lvl, wx, y);
         out.push(
           <img
-            key={`${lvl}/${wx}/${y}`}
+            key={`${lvl}/${x}/${y}`}
             src={url}
             alt=""
             draggable={false}
