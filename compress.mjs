@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 
 const brotli = promisify(zlib.brotliCompress);
 const gzip = promisify(zlib.gzip);
-const EXTS = new Set(['.js', '.css', '.html', '.svg', '.json', '.glb']);
+const EXTS = new Set(['.js', '.css', '.html', '.svg', '.json', '.glb', '.stl', '.urdf']);
 
 async function walk(dir) {
   for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
@@ -20,7 +20,8 @@ async function walk(dir) {
     } else if (EXTS.has(path.extname(entry.name))) {
       const buf = await fs.readFile(p);
       await fs.writeFile(p + '.br', await brotli(buf, {
-        params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 },
+        // Binary CAD meshes compress well at level 5 without a lengthy build.
+        params: { [zlib.constants.BROTLI_PARAM_QUALITY]: path.extname(p) === '.stl' ? 5 : 11 },
       }));
       await fs.writeFile(p + '.gz', await gzip(buf, { level: 9 }));
       console.log(`${p}: ${buf.length} -> br ${(await fs.stat(p + '.br')).size}`);

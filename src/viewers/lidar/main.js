@@ -1,10 +1,11 @@
 import './style.css';
-import { AxesHelper, Color, Vector2, Vector3 } from 'three';
+import { AxesHelper, Color, MeshBasicMaterial, Vector2, Vector3 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import Instance from '@giro3d/giro3d/core/Instance.js';
 import { GlobalCache } from '@giro3d/giro3d/core/Cache.js';
 import PointCloud from '@giro3d/giro3d/entities/PointCloud.js';
 import COPCSource from '@giro3d/giro3d/sources/COPCSource.js';
+import ConstantSizeSphere from '@giro3d/giro3d/renderer/ConstantSizeSphere.js';
 import { setLazPerfPath } from '@giro3d/giro3d/sources/las/config.js';
 import proj4 from 'proj4';
 import { createRangeGetter } from './range.js';
@@ -29,13 +30,9 @@ async function start() {
   if (!response.ok) throw new Error('The scan metadata could not be loaded.');
   const info = await response.json();
   const toLatLon = proj4(info.horizontalCrs, 'EPSG:4326');
-  let downloadError;
   const getter = createRangeGetter(info, base);
   const source = new COPCSource({
-    url: async (begin, end) => {
-      try { return await getter(begin, end); }
-      catch (error) { downloadError = error; throw error; }
-    },
+    url: getter,
     enableWorkers: true,
   });
   await source.initialize();
@@ -92,11 +89,21 @@ async function start() {
   pivot.renderOrder = 1000;
   pivot.visible = false;
   await instance.add(pivot);
+  const selectedPoint = new ConstantSizeSphere({
+    radius: 2.5,
+    material: new MeshBasicMaterial({ color: '#fff000', depthTest: false, depthWrite: false, transparent: true }),
+  });
+  selectedPoint.enableRaycast = false;
+  selectedPoint.renderOrder = 1001;
+  selectedPoint.visible = false;
+  await instance.add(selectedPoint);
   const orbitHint = 'Click a point to inspect. Drag to orbit, scroll to zoom, right-drag to pan.';
   let pickingAnchor = false;
 
   function clearPoint() {
     $('point-info').hidden = true;
+    selectedPoint.visible = false;
+    instance.notifyChange(selectedPoint);
   }
   function setAnchorMode(enabled) {
     pickingAnchor = enabled;
@@ -108,6 +115,7 @@ async function start() {
   function selectPoint(position) {
     const [hit] = instance.pickObjectsAt(position, { where: [cloud], radius: 4, limit: 1, gpuPicking: true });
     if (!hit) {
+      clearPoint();
       $('hint').textContent = 'No visible point there. Click the scan, or zoom closer for finer detail.';
       return;
     }
@@ -120,6 +128,10 @@ async function start() {
       instance.notifyChange(camera);
       return;
     }
+    selectedPoint.position.copy(hit.point);
+    selectedPoint.updateMatrixWorld();
+    selectedPoint.visible = true;
+    instance.notifyChange(selectedPoint);
     const code = hit.object.geometry.getAttribute('classification')?.getX(hit.index);
     const cls = classes.find(c => c.code === code);
     $('point-details').replaceChildren();
@@ -128,7 +140,7 @@ async function start() {
     name.style.color = cls?.color ?? '#e6ecf0';
     const coordinates = document.createElement('p');
     const [lon, lat] = toLatLon.forward([hit.point.x, hit.point.y]);
-    coordinates.textContent = `${Math.abs(lat).toFixed(5)}° ${lat < 0 ? 'S' : 'N'}, ${Math.abs(lon).toFixed(5)}° ${lon < 0 ? 'W' : 'E'}\nElevation ${hit.point.z.toFixed(2)} m`;
+    coordinates.textContent = `${Math.abs(lat).toFixed(3)}° ${lat < 0 ? 'S' : 'N'}, ${Math.abs(lon).toFixed(3)}° ${lon < 0 ? 'W' : 'E'}\nElevation ${hit.point.z.toFixed(2)} m`;
     $('point-details').append(name, coordinates);
     $('point-info').hidden = false;
   }
@@ -195,22 +207,15 @@ async function start() {
     if (event.key === 'Escape') { setAnchorMode(false); clearPoint(); }
   });
 
-  let lastStatus = 0;
-  function animate(now) {
-    if (!document.hidden) {
-      if (now - lastStatus > 500) {
-        lastStatus = now;
-        $('loading').hidden = cloud.displayedPointCount > 0 && !downloadError;
-        if (downloadError) {
-          $('load-message').textContent = 'Some scan detail could not download. Reload to try again.';
-          document.querySelector('.pulse').hidden = true;
-        } else if (!cloud.displayedPointCount) $('load-message').textContent = 'Loading the first points…';
-      }
+  function updateLoading() {
+    if (cloud.displayedPointCount > 0) {
+      $('loading').hidden = true;
+      instance.removeEventListener('update-end', updateLoading);
     }
-    requestAnimationFrame(animate);
   }
+  $('load-message').textContent = 'Loading the first points…';
+  instance.addEventListener('update-end', updateLoading);
   overview();
-  requestAnimationFrame(animate);
 }
 
 start().catch((error) => {

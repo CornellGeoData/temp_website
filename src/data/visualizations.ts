@@ -1,5 +1,5 @@
 // Shared projects for the Visualizations list and view launcher.
-export type ViewId = 'home' | 'map' | 'charts' | 'forecast' | 'lidar';
+export type ViewId = 'home' | 'map' | 'charts' | 'forecast' | 'lidar' | 'hexapod';
 
 export interface Visualization {
   id: Exclude<ViewId, 'home'>;
@@ -38,5 +38,12 @@ export const VISUALIZATIONS: Visualization[] = [
     blurb: 'A 3D point cloud of central Ithaca with predicted surface classes. Inspect individual points and navigate terrain, vegetation, and buildings.',
     thumb: '/visualizations/lidar.jpg',
     hash: '#/sensors/lidar',
+  },
+  {
+    id: 'hexapod',
+    label: 'Hexapod',
+    blurb: 'Explore the Hexapod MKII in 3D. Select a leg, adjust its joints, and inspect the moving linkages.',
+    thumb: '/projects/hexapod.webp',
+    hash: '#/sensors/hexapod',
   },
 ];

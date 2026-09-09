@@ -42,7 +42,7 @@ export function VisualizationsPage() {
     { status: 'loading' } | { status: 'error' } | { status: 'ready'; raw: Record<string, unknown> }
   >({ status: 'loading' });
   const [unit, setUnit] = useState<'C' | 'F'>('F');
-  // stages come from the hash: #/sensors/<map|air|soil|weather|forecast|lidar>.
+  // stages come from the hash: #/sensors/<map|air|soil|weather|forecast|lidar|hexapod>.
   // Bare #/sensors is the landing page
   const stageFromHash = () => window.location.hash.split('/')[2];
   const [mapView, setMapView] = useState(() => stageFromHash() === 'map');
@@ -63,7 +63,8 @@ export function VisualizationsPage() {
   // lab's render pipeline. A full-screen sheet like staticView.
   const [forecastView, setForecastView] = useState(stageFromHash() === 'forecast');
   const [lidarView, setLidarView] = useState(stageFromHash() === 'lidar');
-  const lidarFrame = useRef<HTMLIFrameElement>(null);
+  const [hexapodView, setHexapodView] = useState(stageFromHash() === 'hexapod');
+  const modelFrame = useRef<HTMLIFrameElement>(null);
   // the landing's links change the hash without remounting this page
   useEffect(() => {
     const onHash = () => {
@@ -71,12 +72,13 @@ export function VisualizationsPage() {
       setStaticView(tabFromHash());
       setForecastView(stageFromHash() === 'forecast');
       setLidarView(stageFromHash() === 'lidar');
+      setHexapodView(stageFromHash() === 'hexapod');
       setOpen([]);
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  const home = !mapView && !staticView && !forecastView && !lidarView;
+  const home = !mapView && !staticView && !forecastView && !lidarView && !hexapodView;
   useEffect(() => {
     if (home) return;
     const f = document.getElementById('partners');
@@ -103,7 +105,7 @@ export function VisualizationsPage() {
   // so it's styled directly.
   // ...but peeks back while the mouse sits at the top edge, for navigation.
   // The charts sheet is a page, not a map, so it keeps the header outright
-  const headerHidden = !staticView && (mapView || forecastView || lidarView);
+  const headerHidden = !staticView && (mapView || forecastView || lidarView || hexapodView);
   const [headerPeek, setHeaderPeek] = useState(false);
   useEffect(() => {
     if (!headerHidden) { setHeaderPeek(false); return; }
@@ -112,8 +114,8 @@ export function VisualizationsPage() {
       setHeaderPeek((p) => (y < 12 ? true : y > h + 24 ? false : p));
     };
     const onMove = (e: MouseEvent) => updatePeek(e.clientY);
-    // Pointer events inside the LiDAR iframe do not bubble to the site window.
-    const frame = lidarFrame.current;
+    // Pointer events inside a 3D viewer do not bubble to the site window.
+    const frame = modelFrame.current;
     let frameWindow: Window | null = null;
     const onFrameMove = (e: MouseEvent) => updatePeek(e.clientY + (frame?.getBoundingClientRect().top ?? 0));
     const detachFrame = () => {
@@ -138,7 +140,7 @@ export function VisualizationsPage() {
       frame?.removeEventListener('load', attachFrame);
       detachFrame();
     };
-  }, [headerHidden, lidarView]);
+  }, [headerHidden, lidarView, hexapodView]);
   useEffect(() => {
     const bar = document.querySelector('.site-header')?.parentElement as HTMLElement | null;
     if (!bar) return;
@@ -154,9 +156,9 @@ export function VisualizationsPage() {
   // reflect the current stage into the hash so refresh and copied links land
   // where the reader was (replaceState fires no hashchange, so no loop)
   useEffect(() => {
-    const stage = staticView ?? (lidarView ? 'lidar' : forecastView ? 'forecast' : mapView ? 'map' : null);
+    const stage = staticView ?? (hexapodView ? 'hexapod' : lidarView ? 'lidar' : forecastView ? 'forecast' : mapView ? 'map' : null);
     history.replaceState(null, '', stage ? `#/sensors/${stage}` : '#/sensors');
-  }, [mapView, staticView, forecastView, lidarView]);
+  }, [mapView, staticView, forecastView, lidarView, hexapodView]);
   // clicking a dot toggles its card: open sensors close on a re-click. On
   // mobile only one sheet fits, so a pick replaces instead of stacking.
   const pick = (id: string | null) => {
@@ -452,12 +454,13 @@ export function VisualizationsPage() {
 
   // the launcher's destinations. Switching stages is a fresh start: any open
   // sensor cards close too
-  const currentStage: ViewId = staticView ? 'charts' : lidarView ? 'lidar' : forecastView ? 'forecast' : mapView ? 'map' : 'home';
+  const currentStage: ViewId = staticView ? 'charts' : hexapodView ? 'hexapod' : lidarView ? 'lidar' : forecastView ? 'forecast' : mapView ? 'map' : 'home';
   const goStage = (id: ViewId) => {
     setOpen([]);
     setStaticView(id === 'charts' ? 'air' : null);
     setForecastView(id === 'forecast');
     setLidarView(id === 'lidar');
+    setHexapodView(id === 'hexapod');
     setMapView(id === 'map');
   };
 
@@ -626,9 +629,9 @@ export function VisualizationsPage() {
           </div>
         </div>
       )}
-      {lidarView && (
+      {(lidarView || hexapodView) && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 30 }}>
-          <iframe ref={lidarFrame} src="/lidar/" title="Ithaca semantic LiDAR viewer" allow="fullscreen" style={{ width: '100%', height: '100%', border: 0 }} />
+          <iframe ref={modelFrame} src={hexapodView ? '/hexapod/' : '/lidar/'} title={hexapodView ? 'Interactive Hexapod MKII' : 'Ithaca semantic LiDAR viewer'} allow="fullscreen" style={{ width: '100%', height: '100%', border: 0 }} />
           <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 5 }}>
             <ViewLauncher current={currentStage} onGo={goStage} />
           </div>

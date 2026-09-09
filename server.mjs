@@ -147,16 +147,17 @@ app.get('/api/wx-lifetime', async (req, res) => {
 
 // Serve the .br/.gz files produced by compress.mjs.
 const DIST = path.resolve('dist');
-const COMPRESSIBLE = /\.(?:js|css|html|svg|json|glb)$/;
+const COMPRESSIBLE = /\.(?:js|css|html|svg|json|glb|stl|urdf)$/;
 app.use((req, res, next) => {
   if ((req.method !== 'GET' && req.method !== 'HEAD') || !COMPRESSIBLE.test(req.path)) return next();
+  if (req.headers.range) return next();
   const enc = req.acceptsEncodings('br', 'gzip');
   if (!enc) return next();
   const file = path.join(DIST, req.path) + (enc === 'br' ? '.br' : '.gz');
   if (!file.startsWith(DIST + path.sep) || !existsSync(file)) return next();
   res.set('content-encoding', enc);
   res.set('vary', 'accept-encoding');
-  res.type(path.extname(req.path));
+  res.type(req.path.endsWith('.urdf') ? 'application/xml' : path.extname(req.path));
   // vite hashes /assets/ filenames, so they can be cached forever
   if (req.path.startsWith('/assets/')) res.set('cache-control', 'public, max-age=31536000, immutable');
   if (req.path === '/lidar/metadata.json') res.set('cache-control', 'no-cache');

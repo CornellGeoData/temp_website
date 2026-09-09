@@ -1,0 +1,57 @@
+/* Keep the same floating controls, camera icons, and typography as LiDAR. */
+@import '../lidar/style.css';
+@font-face{font-family:'Source Serif 4';src:url('/fonts/source-serif-4.ttf') format('truetype');font-weight:400;font-display:swap}
+
+.controls-stack{width:256px}
+.panel{padding:14px;max-height:calc(100dvh - 110px);border:0}
+.panel-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;letter-spacing:0}
+.panel-title:after{font:18px/1 system-ui,sans-serif;width:24px;text-align:center}
+.panel-title::-webkit-details-marker{display:none}
+.panel:not([open])>.panel-title{margin-bottom:0}
+h1{font-size:15px;line-height:1.3;font-weight:400;margin:0}
+.view-angles{margin-bottom:12px}
+.view-angles button{border:0;min-height:34px;background:#ffffff08}
+.view-angles button[aria-pressed=true]{background:#7ed7ae20;color:#d5f2e2}
+#reset svg{width:19px;height:19px;stroke-width:1.5;stroke-linecap:round}
+fieldset{padding:0;border:0;margin:0;min-width:0}fieldset:disabled{opacity:.45}
+select{background:#1b2833;border:0;color:#dce5eb;padding:5px 8px;min-height:32px;font-size:14px;max-width:100%}
+.leg-select{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14px;margin-bottom:12px}
+.leg-select label{color:#a7b8c2}.leg-select select{max-width:156px}
+.joint{margin-top:10px}.joint:first-child{margin-top:0}
+.joint-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
+.joint-heading label{color:#b8c8d1}.joint-value{display:flex;align-items:center;gap:3px;color:#91a4b0;font-size:13px}
+.joint-value input{font-size:14px;font-variant-numeric:tabular-nums;background:transparent;color:#d5f2e2;border:0;text-align:right;width:64px;padding:3px;appearance:textfield;-moz-appearance:textfield}
+.joint-value input::-webkit-inner-spin-button,.joint-value input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.joint-value input:hover,.joint-value input:focus{background:#ffffff08}
+.joint input[type=range]{display:block;width:100%;height:22px;margin:1px 0 0;accent-color:#7ed7ae;cursor:pointer}
+.pose-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px}
+.pose-buttons button,.play-button{background:#ffffff08;border:0;padding:7px;color:#a7b8c2;font-size:13px;min-height:34px}
+.pose-buttons button:hover,.play-button:hover{background:#7ed7ae12;color:#e6ecf0}
+.pose-buttons button[aria-pressed=true]{color:#9bdfbb;background:#7ed7ae16}
+.control-section{margin-top:14px}
+.control-section summary{font-size:14px}.control-section[open] summary{margin-bottom:10px}
+.control-section .quality-row,.control-section .class-row{font-size:14px;margin-top:8px}
+.control-section .class-row{min-height:26px;gap:9px}.control-section input[type=checkbox]{width:16px;height:16px}
+.quality-row select{max-width:132px;border:0}.quality-row input[type=range]{max-width:112px;height:22px}
+.play-button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px}
+.play-button svg{width:14px;height:14px;fill:currentColor}.play-button[aria-pressed=true]{color:#9bdfbb}
+.about summary{font-size:12px;border:0}.about-content{border:0}.about p,.about a,.about dl{font-size:13px;line-height:1.6}
+.about dl{display:grid;grid-template-columns:1fr auto;gap:6px;margin:16px 0;color:#a7b8c2}.about dd{margin:0;color:#d5f2e2;font-variant-numeric:tabular-nums}
+#point-info{font-size:13px;border:0}#point-details p{font-size:12px}.hint{font-size:12px}
+#point-details strong{font-family:'Source Serif 4',Georgia,serif;font-size:17px;line-height:1.3;font-variant-numeric:lining-nums tabular-nums}
+#point-info{max-width:min(340px,calc(100% - 48px))}#point-details p{white-space:normal}
+#loading{border:0}
+#loading[data-error]{color:#ffb6ac;border-color:#ffb6ac55}#loading[data-error] .pulse{display:none}
+@media(max-width:720px){
+  .controls-stack{top:auto;bottom:64px;left:14px;right:14px;width:auto;max-width:360px}
+  .panel{padding:12px;max-height:45dvh}
+  .panel-title{margin-bottom:10px}.view-angles{margin-bottom:12px}
+  .view-angles button{min-height:38px}
+  .leg-select{margin-bottom:10px}.joint{margin-top:8px}
+  .joint input[type=range]{height:22px}
+  .pose-buttons{margin-top:10px}.control-section{margin-top:12px}
+  footer{bottom:14px;right:185px}.hint{font-size:12px;line-height:1.4}
+  #loading{top:24px;bottom:auto;max-width:calc(100% - 40px)}
+  #point-info{top:70px;bottom:auto;left:14px}
+  .about-content{max-height:65dvh}
+}

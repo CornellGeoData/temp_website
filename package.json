@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "workspaces": ["lidar"],
+  "workspaces": ["src/viewers/lidar", "src/viewers/hexapod"],
   "scripts": {
     "dev": "vite",
     "build": "vite build && node compress.mjs",

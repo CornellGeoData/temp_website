@@ -15,6 +15,7 @@ forecasts are available in your browser, with no installation or account needed.
 | [Weather Forecast](https://cornellgeodata.com/#/sensors/forecast) | Compare observed radar with local and NOAA forecasts, explore weather layers, and inspect values at a location. |
 | [Sensor Charts](https://cornellgeodata.com/#/sensors/air) | Explore readings over a day, week, month, or the available archive, and download station data as CSV. |
 | [Ithaca LiDAR](https://cornellgeodata.com/#/sensors/lidar) | Explore a 3D survey of central Ithaca, filter predicted surface classes, and inspect individual points. |
+| [Hexapod](https://cornellgeodata.com/#/sensors/hexapod) | Explore the Hexapod MKII, adjust its joints, and inspect the moving linkages. |
 
 Use the grid button in the upper-right corner of a data view to switch between
 the map, forecast, charts, and LiDAR viewer.
@@ -80,14 +81,6 @@ Page components stay together by feature:
 | Member and blog pages | [MembersPage.tsx](src/pages/MembersPage.tsx), [PostsPage.tsx](src/pages/PostsPage.tsx) |
 | Projects, posts, roster, and recruitment dates | [src/data/](src/data/) |
 | Shared fonts, colors, and styles | [src/styles/](src/styles/) |
-| Ithaca LiDAR viewer | [lidar/](lidar/) |
+| Ithaca LiDAR viewer | [src/viewers/lidar/](src/viewers/lidar/) |
+| Interactive hexapod viewer | [src/viewers/hexapod/](src/viewers/hexapod/) |
 | Images, fonts, sponsorship packet, and LiDAR data | [public/](public/) |
-
-In `visualizations/`, `VisualizationsPage.tsx` handles navigation and feeds,
-`SensorCharts.tsx` renders charts, and `sensorData.ts` defines stations, parses
-readings, and exports CSV. `src/data/visualizations.ts` controls the project list;
-its preview images live in `public/visualizations/`.
-
-The LiDAR viewer has its own npm workspace for its rendering dependencies and is
-built with the main site. `server.mjs` serves production files and sensor APIs;
-`compress.mjs` compresses the build output.

@@ -106,6 +106,7 @@ export const POSTS: Post[] = [
       { img: '/projects/hexapod-leg.webp' },
     ],
     links: [
+      { label: 'Explore the hexapod in 3D', href: '#/sensors/hexapod' },
       { label: 'Cornell Physical Intelligence', href: 'https://cornellphysicalintelligence.com/' },
     ],
   },
