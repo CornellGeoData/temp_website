@@ -67,9 +67,7 @@ body {
   text-size-adjust: 100%;
 }
 
-/* film grain over everything, including the header and modals: a 160px
-   monochrome noise tile rasterized once and repeated, so the filter never
-   runs at viewport size. Trial - opacity is the only knob */
+/* Repeat a small grain texture to avoid a viewport-sized SVG filter. */
 body::after {
   content: '';
   position: fixed;
@@ -105,6 +103,15 @@ a {
 
 a:hover {
   color: #84d3ab;
+}
+
+.stage-menu-overlay {
+  padding: 122px 20px 20px;
+}
+
+body:has(.stage-menu-overlay) .site-header-shell {
+  z-index: 1001 !important;
+  transform: translateY(0) !important;
 }
 
 /* headline links (project cards, post feed): inherit the heading color, tint
@@ -201,6 +208,10 @@ details[open] > summary .chev::before {
 
   .site-header {
     padding: 10px 12px !important;
+  }
+
+  .stage-menu-overlay {
+    padding-top: 80px;
   }
 
   .site-nav {

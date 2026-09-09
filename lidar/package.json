@@ -1,0 +1,11 @@
+{
+  "name": "@geodata/lidar",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@giro3d/giro3d": "2.0.4",
+    "ol": "10.8.0",
+    "proj4": "2.19.10",
+    "three": "0.180.0"
+  }
+}

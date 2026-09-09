@@ -55,6 +55,7 @@ export const POSTS: Post[] = [
       { img: '/blog/usgs-lidar.webp' },
     ],
     links: [
+      { label: 'Explore the Ithaca LiDAR scan', href: '#/sensors/lidar' },
       { label: '3Dsem on PyPI', href: 'https://pypi.org/project/3Dsem/' },
       { label: 'Orion on LinkedIn', href: 'https://www.linkedin.com/in/orion-hoch/' },
     ],

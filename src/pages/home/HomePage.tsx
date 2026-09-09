@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
-import Globe from '../components/Globe';
-import { RESIPLE, MANTI, H2, BODY, PILL, PILL_PRIMARY, fmtTag } from '../styles/theme';
-import { PROJECTS, RECRUITING_TRACKS, COFFEE_CHAT_SHEET, openApplications, shortDate } from '../data/content';
+import Globe from './Globe';
+import { RESIPLE, MANTI, H2, BODY, PILL, PILL_PRIMARY, fmtTag } from '../../styles/theme';
+import { PROJECTS, RECRUITING_TRACKS, COFFEE_CHAT_SHEET, openApplications, shortDate } from '../../data/content';
 
 // hand-drawn-style line icons for the timeline stops, same stroke language as
 // the tethersonde balloon in the join heading
@@ -149,7 +149,7 @@ export function HomePage() {
                     proj.title
                   )}
                 </h3>
-                {proj.body && <p style={{ fontSize: 15, lineHeight: 1.6, color: '#a9bcc6', margin: '12px 0 0' }}>{proj.body}</p>}
+                {proj.body && <p style={{ fontSize: 15.5, lineHeight: 1.6, color: '#a9bcc6', margin: '12px 0 0' }}>{proj.body}</p>}
               </div>
             </article>
           ))}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0e141c" />
+  <title>Cornell GeoData: Ithaca LiDAR</title>
+  <meta name="description" content="Explore 11.4 million semantically classified LiDAR points of central Ithaca. Fly through the scan and isolate buildings, trees, ground, water, and bridges." />
+</head>
+<body>
+  <div id="view" role="main" tabindex="0" aria-label="Interactive Ithaca LiDAR scan. Click a point to inspect it. Drag to orbit, scroll to zoom, or use arrow keys to pan. Press Enter to select the center point."></div>
+  <div class="controls-stack">
+  <aside class="panel" id="controls" aria-label="LiDAR controls">
+    <div class="view-angles" role="group" aria-label="View angle and orbit anchor">
+      <button data-view="iso" aria-label="3D overview" title="Reset to 3D overview"><svg viewBox="0 0 32 34" aria-hidden="true"><path class="face" d="M16 2 29 9 16 16 3 9Z M3 9 16 16 16 31 3 24Z M16 16 29 9 29 24 16 31Z" /></svg></button>
+      <button data-view="top" aria-label="Top view, XY plane" title="Top (XY plane)"><svg viewBox="0 0 32 34" aria-hidden="true"><path class="face" d="M16 2 29 9 16 16 3 9Z"/><path d="M3 9 3 24 16 31 29 24 29 9 M16 16V31"/></svg></button>
+      <button data-view="front" aria-label="Front view, XZ plane" title="Front (XZ plane)"><svg viewBox="0 0 32 34" aria-hidden="true"><path class="face" d="M3 9 16 16 16 31 3 24Z"/><path d="M3 9 16 2 29 9 29 24 16 31 M16 16 29 9"/></svg></button>
+      <button data-view="side" aria-label="Side view, YZ plane" title="Side (YZ plane)"><svg viewBox="0 0 32 34" aria-hidden="true"><path class="face" d="M16 16 29 9 29 24 16 31Z"/><path d="M16 31 3 24 3 9 16 2 29 9 M3 9 16 16"/></svg></button>
+      <button id="anchor" aria-label="Pick orbit anchor" title="Pick orbit anchor" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6"/><path d="M12 2v6m0 8v6M2 12h6m8 0h6"/></svg></button>
+    </div>
+    <details open class="classes-panel">
+      <summary>Semantic classes <span>5</span></summary>
+      <div id="classes" aria-label="Visible semantic classes"></div>
+    </details>
+    <div class="quality-row"><label for="quality">Point coarseness</label><select id="quality"><option value="750000">Light</option><option value="2500000" selected>Balanced</option><option value="6000000">High</option></select></div>
+    <div class="quality-row"><label for="point-size">Point size</label><input id="point-size" type="range" min="1" max="6" step="0.5" value="2" /></div>
+
+  </aside>
+  </div>
+  <div id="loading" role="status"><span class="pulse"></span><span id="load-message">Opening the Ithaca scan…</span></div>
+  <section id="point-info" hidden aria-label="Selected point">
+    <button id="close-point" aria-label="Close point details">×</button>
+    <div id="point-details" role="status"></div>
+  </section>
+  <details class="about"><summary><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 9v5M10 5.5v1"/></svg>About this scan</summary><div class="about-content"><p>NYS Central Finger Lakes 2020 survey.</p><p>All 11,400,976 source points were semantically segmented using 3dsem with Utonia weights fine-tuned for aerial LiDAR.</p><p><a href="https://arxiv.org/abs/2603.03283" target="_blank" rel="noopener">Utonia: Toward One Encoder for All Point Clouds ↗</a></p><a href="https://www.fisheries.noaa.gov/inport/item/67099" target="_blank" rel="noopener">Source survey metadata ↗</a></div></details>
+  <footer>
+    <div class="hint" id="hint">Click a point to inspect. Drag to orbit, scroll to zoom, right-drag to pan.</div>
+  </footer>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

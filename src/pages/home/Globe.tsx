@@ -9,7 +9,7 @@ const STARS = Array.from({ length: 90 }, () => ({
   o: 0.3 + Math.random() * 0.45,
 }));
 
-// home: the same dot the sensors globe carries, here purely as a signature
+// Ithaca's position on the home globe.
 const ITHACA = { lat: 42.4474, lon: -76.4641 };
 
 export default function Globe() {
@@ -29,7 +29,7 @@ export default function Globe() {
     let engine: { unmount(): void } | undefined;
     let cancelled = false;
     const canvasEl = canvasRef.current!;
-    import('../lib/globeEngine').then((mod) => {
+    import('./globeEngine').then((mod) => {
       if (cancelled) return;
       // the pin rides the globe, repositioned against each drawn frame
       const onFrame = () => {
@@ -40,7 +40,7 @@ export default function Globe() {
         el.style.opacity = '1';
         el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`;
       };
-      const e = new mod.GlobeEngine({ userZoom: false, onFrame }); // hero globe: drag only, no zoom
+      const e = new mod.GlobeEngine(onFrame);
       e.mount({ canvasEl, onNoWebGL: () => setNoWebGL(true) });
       engine = e;
     });

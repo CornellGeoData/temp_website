@@ -82,7 +82,7 @@ app.get('/api/aqi-lifetime', async (_req, res) => {
 
 // the Soilmote lifetime archive: Zynect takes ~a minute to assemble it, so one
 // upstream fetch is shared by all visitors and refreshed every 6h. Serials must
-// match SOILMOTES in src/pages/sensors.tsx (internal ids, not portal aliases).
+// match SOILMOTES in src/pages/visualizations/sensorData.ts (internal ids, not portal aliases).
 const SOIL_SERIALS = ['egge82d1055169daf2b'];
 let soilLife = { t: 0, p: null };
 app.get('/api/soil-lifetime', async (_req, res) => {
@@ -104,7 +104,7 @@ app.get('/api/soil-lifetime', async (_req, res) => {
 // the NEWA stations' 5-year hourly archives: ~4MB of JSON each from NRCC, so
 // one shared fetch (all stations in parallel) is cached 6h and stored gzipped -
 // the repetitive rows shrink ~10x, and history only grows at the margin.
-// Ids must match NEWA_STATIONS in src/pages/sensors.tsx.
+// Ids must match NEWA_STATIONS in src/pages/visualizations/sensorData.ts.
 const WX_STATIONS = { 'wx-itha': 'ny_itha nwon', 'wx-itbl': 'ny_itbl nwon', 'wx-lans': 'ny_lans nwon', 'wx-aur': 'aur newa', 'wx-int': 'int newa' };
 // station-local (NY) YYYYMMDDHH; the API rejects an edate past the current hour
 const nrccStamp = (t) => new Date(t).toLocaleString('sv', { timeZone: 'America/New_York' }).replace(/\D/g, '').slice(0, 10);
@@ -145,7 +145,7 @@ app.get('/api/wx-lifetime', async (req, res) => {
   }
 });
 
-// serve the .br/.gz siblings scripts/compress.mjs emits at build time
+// Serve the .br/.gz files produced by compress.mjs.
 const DIST = path.resolve('dist');
 const COMPRESSIBLE = /\.(?:js|css|html|svg|json|glb)$/;
 app.use((req, res, next) => {
@@ -159,6 +159,7 @@ app.use((req, res, next) => {
   res.type(path.extname(req.path));
   // vite hashes /assets/ filenames, so they can be cached forever
   if (req.path.startsWith('/assets/')) res.set('cache-control', 'public, max-age=31536000, immutable');
+  if (req.path === '/lidar/metadata.json') res.set('cache-control', 'no-cache');
   res.sendFile(file);
 });
 
@@ -167,7 +168,8 @@ app.use(express.static('dist', {
   etag: true,
   maxAge: '30d',
   setHeaders: (res, p) => {
-    if (p.endsWith('.html')) res.set('cache-control', 'no-cache');
+    if (p.endsWith('.html') || p.endsWith(`${path.sep}lidar${path.sep}metadata.json`)) res.set('cache-control', 'no-cache');
+    else if (/[/\\]lidar[/\\][a-f0-9]{12}[/\\]/.test(p)) res.set('cache-control', 'public, max-age=31536000, immutable');
     else if (p.includes(`${path.sep}assets${path.sep}`)) res.set('cache-control', 'public, max-age=31536000, immutable');
   },
 }));

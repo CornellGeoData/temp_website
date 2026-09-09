@@ -1,11 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { MANTI } from '../styles/theme';
-import { ALUMNI } from '../data/content';
+import { MANTI } from '../../styles/theme';
+import { ALUMNI } from '../../data/content';
 
-// draggable "ball pit" of alumni destination logos. Entries without a logo
-// render as initials. Physics state lives outside React - balls render once
-// and every frame writes transforms directly, same reasoning as the globe
-// engine's rAF loop.
+// Physics updates DOM transforms without triggering React renders.
 export function AlumniPit({ alumni }: { alumni: typeof ALUMNI }) {
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -83,7 +80,7 @@ export function AlumniPit({ alumni }: { alumni: typeof ALUMNI }) {
         // tiny bounce every frame and the pile vibrates forever
         if (b.y > H - R) { b.y = H - R; b.vy = -b.vy * REST; b.vx *= 0.96; if (-b.vy < 60) b.vy = 0; }
       }
-      // ponytail: O(n²) pair collisions - fine for a few dozen logos, grid-hash if the list ever gets big
+      // Pairwise collisions are O(n²) for this small set of logos.
       // two solver passes stiffen the stack so balls don't sink and re-push each frame
       for (let iter = 0; iter < 2; iter++) {
       for (let i = 0; i < balls.length; i++) {

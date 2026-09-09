@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { TILE, lonToX, latToY, xToLon, yToLat } from '../lib/mercator';
-import { AIR, SOIL, WEATHER, type GlobeSite } from '../lib/sites';
-import { RESIPLE } from '../styles/theme';
+import { TILE, lonToX, latToY, xToLon, yToLat, type RasterTiles } from './mercator';
+import { AIR, SOIL, WEATHER, type MapSite } from './sensorData';
+import { RESIPLE } from '../../styles/theme';
+import WeatherOverlay from './WeatherOverlay';
 
-// Esri World Imagery: keyless, and the only free source that actually reaches
-// street level over Tompkins County - the USGS National Map is public domain
-// but its imagery stops at z16 here (~1.8 m/px). Swap these two lines to change
-// provider; the {z}/{y}/{x} path order is Esri's own.
+// Esri World Imagery uses {z}/{y}/{x} tile order.
 const TILE_URL = (z: number, x: number, y: number) =>
   `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
 const ATTRIBUTION = 'Imagery: Esri, Maxar, Earthstar Geographics';
@@ -20,6 +18,7 @@ export interface Overlay {
   url: string;
   bounds: { n: number; s: number; w: number; e: number };
   opacity: number;
+  tiles?: RasterTiles;
 }
 // phones get a compact legend; decided once, like every other mobile fork here
 const SMALL = window.matchMedia('(max-width: 720px)').matches;
@@ -29,7 +28,7 @@ const easeInOut = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t 
 export interface MapTarget { lat: number; lon: number; zoom: number; nonce: number }
 
 export default function TileMap({ sites, selectedIds, onSelect, target, initial, onView, dur = 1400, tileUrl = TILE_URL, attribution = ATTRIBUTION, minZ = MIN_Z, maxZ = MAX_Z, overlays, onPick, showLegend }: {
-  sites: GlobeSite[];
+  sites: MapSite[];
   selectedIds: string[];
   onSelect: (id: string) => void;
   // the map eases to this whenever `nonce` changes
@@ -121,7 +120,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
         p.x = e.clientX;
         p.y = e.clientY;
         const s = span();
-        // ponytail: centre-anchored pinch; focal-point zoom if it feels drifty
+        // Pinch zoom is anchored to the map center.
         setView({ ...v, zoom: clamp(v.zoom + Math.log2(s / (pinchSpan || s)), zBounds.current.minZ, zBounds.current.maxZ) });
         pinchSpan = s;
         return;
@@ -216,7 +215,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
 
   const cx = lonToX(view.lon, Z);
   const cy = latToY(view.lat, Z);
-  const screen = (s: GlobeSite) => ({
+  const screen = (s: MapSite) => ({
     x: (lonToX(s.lon, Z) - cx) * scale + midX,
     y: (latToY(s.lat, Z) - cy) * scale + h / 2,
   });
@@ -230,26 +229,7 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
       {Z > minZ && layer(Z - 1)}
       {layer(Z)}
 
-      {/* weather overlays ride the same transform as the active tile level, so
-          a frame swap or pan can never shear them off the basemap */}
-      {overlays && overlays.length > 0 && (
-        <div style={{ position: 'absolute', left: midX, top: h / 2, transform: `scale(${scale})`, transformOrigin: '0 0', pointerEvents: 'none' }}>
-          {overlays.map((o) => {
-            const x0 = lonToX(o.bounds.w, Z);
-            const y0 = latToY(o.bounds.n, Z);
-            return (
-              <img
-                key={o.url}
-                src={o.url}
-                alt=""
-                draggable={false}
-                decoding="sync"
-                style={{ position: 'absolute', left: x0 - cx, top: y0 - cy, width: lonToX(o.bounds.e, Z) - x0, height: latToY(o.bounds.s, Z) - y0, opacity: o.opacity, userSelect: 'none' }}
-              />
-            );
-          })}
-        </div>
-      )}
+      {overlays?.map((o) => <WeatherOverlay key={o.url} overlay={o} view={view} size={size} />)}
 
       {/* Jefferson-style markers: the color is the information - a solid dot
           per family, hollow for retired, no names printed on the map. The

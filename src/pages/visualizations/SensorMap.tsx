@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { GlobeSite } from '../lib/sites';
-import { lonToX } from '../lib/mercator';
+import type { MapSite } from './sensorData';
+import { lonToX } from './mercator';
 import TileMap, { type MapTarget } from './TileMap';
 
 // The whole network fits in about 3.3 km. The map opens wide and eases in to
@@ -19,7 +19,7 @@ const EDGE = 16;
 const CARD_TOP = 74;
 
 export default function SensorMap({ sites, selectedIds, onSelect, cards }: {
-  sites: GlobeSite[];
+  sites: MapSite[];
   selectedIds: string[];
   onSelect: (id: string | null) => void;
   // one floating readings card per open sensor
@@ -71,7 +71,7 @@ let zTop = 10;
 // stage so it can never be lost off-screen. Clicking anywhere on a card
 // raises it above its siblings.
 function FloatingCard({ site, index, node, rootRef, mapViewRef }: {
-  site?: GlobeSite;
+  site?: MapSite;
   index: number;
   node: ReactNode;
   rootRef: { current: HTMLDivElement | null };

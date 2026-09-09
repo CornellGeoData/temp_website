@@ -1,12 +1,6 @@
 import type React from 'react';
 
-// shared presentational values - the two site fonts, section and text styles -
-// plus the one text formatter used by more than one page. Nothing else belongs
-// here: the next non-token helper that wants in means this file needs a
-// different name, not another lodger.
-
-// the two site fonts. Manti Sans is display-only (no period glyph - decimals
-// render as tofu), so anything numeric or body-sized uses Resiple.
+// Manti Sans lacks a period glyph; use Resiple for body text and numbers.
 export const RESIPLE = "'Resiple',sans-serif";
 export const MANTI = "'Manti Sans',sans-serif";
 

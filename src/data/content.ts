@@ -31,7 +31,7 @@ export const PROJECTS: Project[] = [
     tag: 'Tech x Air',
     tagColor: '#c92556',
     title: '3D Printed Weather Stations',
-    body: "Weather stations printed to UCAR's open-source 3DPAWS design: temperature, pressure, humidity, wind and rain at about a tenth the cost of a commercial station. Built summer 2026, deploying around Cayuga Lake in fall 2026.",
+    body: "Weather stations based on UCAR's open-source 3DPAWS design use 3D-printed components. They measure temperature, pressure, humidity, wind, and precipitation for local meteorological monitoring.",
     photo: '/projects/sensors.webp',
   },
   {
@@ -39,7 +39,7 @@ export const PROJECTS: Project[] = [
     tag: 'Water',
     tagColor: '#2e6fc9',
     title: 'Cayuga Lake Buoy',
-    body: "A decommissioned research buoy from Todd Cowen's hydraulics lab, being refitted with a commercial GMX-550 weather station, our homemade stations, and a suite of water sensors into one floating lake-monitoring platform.",
+    body: 'A research buoy is being refitted for deployment on Cayuga Lake. Meteorological and water sensors will collect concurrent observations of atmospheric and lake conditions.',
     photo: '/projects/sensors-lake.webp',
   },
   {
@@ -47,7 +47,7 @@ export const PROJECTS: Project[] = [
     tag: 'Air',
     tagColor: '#6d9dcd',
     title: 'Atmospheric Tethersonde',
-    body: 'An affordable, portable atmospheric profiler. We built it to get high-resolution observations of boundary-layer and lake-effect weather.',
+    body: 'A tethered instrument platform collects vertical profiles of atmospheric conditions. These measurements support studies of the boundary layer and lake-effect weather.',
     photo: '/projects/tethersonde.webp',
     photoAspect: '4/5',
     photoPosition: '57% 50%',
@@ -57,7 +57,7 @@ export const PROJECTS: Project[] = [
     tag: 'Rock',
     tagColor: '#c1703f',
     title: 'NISAR Ground-Truthing',
-    body: "Five soil-moisture nodes at the Game Farm site check NASA's NISAR satellite against what's actually in the dirt. One still reports; the other four keep their archives on the data page.",
+    body: 'Five soil moisture nodes at Game Farm provide ground measurements for comparison with NASA NISAR satellite observations. Current and archived records are available through the sensor views.',
     photo: '/projects/nisar.webp',
     photoAspect: '4/5',
     photoPosition: '50% 40%',
@@ -67,14 +67,14 @@ export const PROJECTS: Project[] = [
     tag: 'Tech x CUPI Partnership',
     tagColor: '#c92556',
     title: 'LiDAR Hexapod',
-    body: 'A LiDAR attachment for a six-legged robot, built jointly with Cornell Physical Intelligence. Its ground-level scans merge with UAV LiDAR into a 3D model of the Finger Lakes.',
+    body: 'A LiDAR-equipped hexapod is being developed with Cornell Physical Intelligence for ground surveys. Its scans are intended to complement UAV point clouds in 3D terrain mapping.',
     photo: '/projects/hexapod.webp',
   },
   {
     tag: 'Coming soon',
     tagColor: '#c92556',
     title: 'Drone Photogrammetry',
-    body: 'Repeatable aerial surveys of Finger Lakes shorelines. Overlapping drone passes stitched into 3D scans, to make erosion measurable and give our sensor data terrain context.',
+    body: 'Planned drone surveys will use overlapping aerial images to reconstruct shoreline topography. Repeat surveys will quantify erosion and other surface changes in the Finger Lakes.',
     photo: '/projects/drone.webp',
   },
 ];
@@ -121,10 +121,10 @@ export const RECRUITING_TRACKS: RecruitingTrack[] = [
   },
   {
     track: 'Freshmen + New Transfers',
-    form: 'https://docs.google.com/forms/d/1u6mjjlEL9Y4fdN8RFB1K6jTpS7aYig-wt54i3YyhtS8/viewform',
-    formLabel: 'Underclassmen Interest Form',
+    form: 'https://docs.google.com/forms/d/e/1FAIpQLSenMm9FiS4NGRBXWI6dTlI_5OEUe1ncU6dAQPYy-epqic-8Bg/viewform?usp=dialog',
+    formLabel: 'Freshman Application',
     events: [
-      { name: 'Project Teams Fest', when: 'Sept 1, 4-6 p.m.\nDuffield Atrium', end: '2026-09-01T18:00:00-04:00', icon: 'fest' },
+      { name: 'Info Session', when: 'Sept 16, 5–6 p.m.\nSnee 1150', end: '2026-09-16T18:00:00-04:00', icon: 'interview' },
       { name: 'Coffee Chats', when: 'Aug 27 – Oct 14', end: '2026-10-14T23:59:59-04:00', icon: 'coffee' },
       { name: 'Applications Due', when: 'Oct 15, 11:59 p.m.', end: '2026-10-15T23:59:00-04:00', icon: 'apps' },
       { name: 'Interviews', when: 'Oct 16 – Nov 1', end: '2026-11-01T23:59:59-05:00', icon: 'interview' },
@@ -208,9 +208,7 @@ export const ALUMNI: { place: string; logo?: string }[] = [
   { place: 'Yale', logo: '/alumni/yale.webp' },
 ];
 
-// members live in src/members.json - mass-edit there. Photos go in
-// public/members/ and each entry's "photo" is its path, e.g. "/members/jane.webp".
-// Clicking a photo flips the tile to a contact card (email + major).
+// Edit the roster in src/data/members.json and photos in public/members/.
 export const MEMBERS: Member[] = membersData;
 
 export const SUBTEAM_COUNT = new Set(MEMBERS.map((m) => m.subteam)).size - 1; // Leadership isn't a subteam

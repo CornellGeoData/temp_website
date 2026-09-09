@@ -1,11 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // ponytail: allow any host so the temp Railway domain works with `vite preview`
+  build: { rollupOptions: { input: { main: 'index.html', lidar: 'lidar/index.html' } } },
+  // Support previewing on the deployment host.
   preview: { allowedHosts: true },
-  // dev: /api/aqi comes from a locally running `node server.mjs`
+  // Sensor API served locally by npm start.
   server: { proxy: { '/api': 'http://localhost:4173' } },
 })

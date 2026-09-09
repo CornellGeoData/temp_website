@@ -1,15 +1,11 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlumniPit } from '../components/AlumniPit';
-import { RESIPLE, MANTI, H2, BODY, SUBPAGE, PILL, PILL_PRIMARY } from '../styles/theme';
-import { SPONSOR_PACKET_PDF, TIERS, ALUMNI } from '../data/content';
+import { AlumniPit } from './AlumniPit';
+import { RESIPLE, MANTI, H2, BODY, SUBPAGE, PILL, PILL_PRIMARY } from '../../styles/theme';
+import { SPONSOR_PACKET_PDF, TIERS, ALUMNI } from '../../data/content';
 
-// the packet renders as pre-baked page images (public/sponsorship/) instead of
-// a browser <object> PDF embed - consistent styling, works on phones, and
-// avoids downloading the 29MB PDF just to preview it. Regenerate after
-// updating the packet:
-//   pdftoppm -jpeg -jpegopt quality=78 -scale-to-x 1400 -scale-to-y -1 public/sponsorship/packet.pdf public/sponsorship/page
+// Keep the WebP page previews in sync with public/sponsorship/packet.pdf.
 const PACKET_PAGE_COUNT = 12;
 const packetPageSrc = (n: number) => `/sponsorship/page-${String(n + 1).padStart(2, '0')}.webp`;
 
@@ -46,7 +42,7 @@ function PacketViewer() {
         // the middle of it; on phones that is the full row
         : { flex: '1 1 260px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
     >
-      <div style={{ position: 'relative', width: full ? undefined : 'min(70%, 320px)', border: '2px solid #e6ecf0' }}>
+      <div style={{ position: 'relative', width: full ? undefined : 'min(70%, 320px)' }}>
         {/* inline: the page fills the column width and its height follows the
             aspect ratio, so there is never a letterbox; fullscreen: fit the
             page inside the viewport both ways */}

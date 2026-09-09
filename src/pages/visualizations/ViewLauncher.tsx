@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { RESIPLE } from '../styles/theme';
-import { STAGES, type Stage, type StageId } from '../data/stages';
+import { RESIPLE } from '../../styles/theme';
+import { VISUALIZATIONS, type Visualization, type ViewId } from '../../data/visualizations';
 
 // the way between the data page's views: a nine-dot button that opens a
 // grid of tiles, one picture and a line of description per view.
 // The panel portals to <body> so no stage's overflow or transform can clip it.
-export default function StageLauncher({ current, onGo, ink = '#e6ecf0', buttonStyle }: {
-  current: StageId;
-  onGo: (id: StageId) => void;
+export default function ViewLauncher({ current, onGo, ink = '#e6ecf0', buttonStyle }: {
+  current: ViewId;
+  onGo: (id: ViewId) => void;
   ink?: string;
   buttonStyle?: CSSProperties;
 }) {
@@ -40,22 +40,23 @@ export default function StageLauncher({ current, onGo, ink = '#e6ecf0', buttonSt
       </button>
       {openPanel && createPortal(
         <div
+          className="stage-menu-overlay"
           onClick={() => setOpenPanel(false)}
-          style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: 'rgba(14,20,28,0.6)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', animation: 'stage-fade 180ms ease-out' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(14,20,28,0.6)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', animation: 'stage-fade 180ms ease-out' }}
         >
           <style>{'@keyframes stage-fade{from{opacity:0}to{opacity:1}} .stage-tile:hover{border-color:rgba(255,255,255,0.45)!important}'}</style>
           <div
             role="dialog"
-            aria-label="Data views"
+            aria-label="Visualizations"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 780, maxHeight: '92dvh', overflowY: 'auto', background: '#0e141c', border: '1px solid rgba(255,255,255,0.15)', padding: 'clamp(16px,3vw,26px)', fontFamily: RESIPLE }}
+            style={{ width: '100%', maxWidth: 780, maxHeight: '100%', overflowY: 'auto', background: '#0e141c', border: '1px solid rgba(255,255,255,0.15)', padding: 'clamp(16px,3vw,26px)', fontFamily: RESIPLE }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <button type="button" onClick={() => { setOpenPanel(false); onGo('home'); }} style={{ appearance: 'none', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#4fae7d' }}>All data views</button>
-              <button type="button" aria-label="Close" onClick={() => setOpenPanel(false)} style={{ appearance: 'none', border: 'none', background: 'transparent', color: '#a9bcc6', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
+              <button type="button" onClick={() => { setOpenPanel(false); onGo('home'); }} style={{ appearance: 'none', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#4fae7d' }}>Visualizations</button>
+              <button type="button" aria-label="Close" onClick={() => setOpenPanel(false)} style={{ appearance: 'none', border: 'none', background: 'transparent', color: '#a9bcc6', cursor: 'pointer', fontFamily: RESIPLE, fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(300px,100%),1fr))', gap: 18 }}>
-              {STAGES.map((s) => (
+              {VISUALIZATIONS.map((s) => (
                 <Tile key={s.id} stage={s} here={s.id === current} onPick={() => { setOpenPanel(false); if (s.id !== current) onGo(s.id); }} />
               ))}
             </div>
@@ -67,19 +68,16 @@ export default function StageLauncher({ current, onGo, ink = '#e6ecf0', buttonSt
   );
 }
 
-function Tile({ stage, here, onPick }: { stage: Stage; here: boolean; onPick: () => void }) {
+function Tile({ stage, here, onPick }: { stage: Visualization; here: boolean; onPick: () => void }) {
   return (
     <button
       type="button"
       className="stage-tile"
       onClick={onPick}
-      style={{ appearance: 'none', cursor: 'pointer', textAlign: 'left', padding: 10, background: 'transparent', color: '#e6ecf0', border: `1px solid ${here ? '#4fae7d' : 'rgba(255,255,255,0.14)'}`, transition: 'border-color 150ms' }}
+      style={{ appearance: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: RESIPLE, padding: 10, background: 'transparent', color: '#e6ecf0', border: `1px solid ${here ? '#4fae7d' : 'rgba(255,255,255,0.14)'}`, transition: 'border-color 150ms' }}
     >
       <img src={stage.thumb} alt="" loading="lazy" decoding="async" draggable={false} style={{ display: 'block', width: '100%', aspectRatio: '16/10', objectFit: 'cover', background: '#141c26' }} />
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginTop: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 15.5 }}>{stage.label}</div>
-        {here && <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#4fae7d', whiteSpace: 'nowrap' }}>You are here</div>}
-      </div>
+      <div style={{ marginTop: 12, fontWeight: 700, fontSize: 15.5 }}>{stage.label}</div>
       <div style={{ fontSize: 13, lineHeight: 1.5, color: '#a9bcc6', marginTop: 5 }}>{stage.blurb}</div>
     </button>
   );

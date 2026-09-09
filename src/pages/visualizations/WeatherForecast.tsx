@@ -1,26 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import TileMap, { type MapTarget, type Overlay } from './TileMap';
-import { type GlobeSite } from '../lib/sites';
-import { RESIPLE } from '../styles/theme';
+import { type MapSite } from './sensorData';
+import { RESIPLE } from '../../styles/theme';
 
-// The weather feed: rendered on the lab's DGX Spark every 6 hours and
-// force-pushed to the geodata-wx repo's gh-pages branch. Served with open
-// CORS, so dev and prod both read it live - no local sync needed.
+// Weather maps and value grids are published separately from the website.
 const WX_BASE = 'https://cornellgeodata.github.io/geodata-wx';
 
-// Esri's light-gray canvas: keyless like the imagery layer, white enough that
-// conventional weather colors carry all the meaning. Levels stop at 16.
 const LIGHT_TILES = (z: number, x: number, y: number) =>
   `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${z}/${y}/${x}`;
-const LIGHT_ATTR = 'Basemap: Esri. HRRR: NOAA via dynamical.org';
 
-// the larger Finger Lakes framing (fixed by decision; matches render_wx.py BBOX)
 const SMALL = window.matchMedia('(max-width: 720px)').matches;
 const HOME = { lat: 42.75, lon: -76.6, zoom: SMALL ? 8.2 : 9 };
 
 interface Frame { file: string; valid: string; data?: string }
-// per-layer regular grid of point values (row 0 = north edge, row-major),
-// published next to the PNGs so a click can read the actual number
+// Value grids are row-major, with row 0 at the north edge.
 interface ValuesMeta { n: number; s: number; w: number; e: number; rows: number; cols: number; unit: string }
 // the colour scale as data - rendered as a real DOM element, not a raster
 interface Scale {
@@ -37,6 +30,7 @@ interface WxLayer {
   id: string;
   label: string;
   source: string;
+  group?: string;
   kind: 'obs' | 'forecast';
   init: string | null;
   stale_minutes: number;
@@ -44,6 +38,7 @@ interface WxLayer {
   bounds: { n: number; s: number; w: number; e: number };
   scale?: Scale;
   values?: ValuesMeta;
+  tiles?: Overlay['tiles'];
   frames: Frame[];
 }
 
@@ -102,10 +97,23 @@ const PANEL: React.CSSProperties = {
 
 const fmtValid = (iso: string) =>
   new Date(iso).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
-// plain local time, matching the timebar (the UTC-cycle "06Z" form confused readers)
-const fmtInit = (iso: string) => fmtValid(iso);
 
-export default function ForecastView() {
+async function readWeatherValues(response: Response): Promise<(number | null)[]> {
+  if (!response.ok) throw new Error(`Weather values: HTTP ${response.status}`);
+  const bytes = await response.arrayBuffer();
+  const header = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
+  const body = new Blob([bytes]).stream();
+  // GitHub Pages serves .json.gz as a file, without Content-Encoding. Check
+  // the bytes so plain JSON and responses already decoded by fetch also work.
+  const decoded = header[0] === 0x1f && header[1] === 0x8b
+    ? body.pipeThrough(new DecompressionStream('gzip'))
+    : body;
+  const { v } = await new Response(decoded).json();
+  if (!Array.isArray(v)) throw new Error('Weather values: missing grid');
+  return v;
+}
+
+export default function WeatherForecast() {
   const [manifest, setManifest] = useState<Manifest | 'loading' | 'error'>('loading');
   const [layerId, setLayerId] = useState<string | null>(null);
   const [frame, setFrame] = useState(0);
@@ -117,7 +125,7 @@ export default function ForecastView() {
 
   useEffect(() => {
     let alive = true;
-    fetch(`${WX_BASE}/latest.json`)
+    fetch(`${WX_BASE}/latest.json`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((m: Manifest) => {
         if (!alive) return;
@@ -132,13 +140,12 @@ export default function ForecastView() {
   // but not offered here
   const layers = typeof manifest === 'object' ? manifest.layers.filter((l) => l.id !== 'stormcast_rain') : [];
   const layer = layers.find((l) => l.id === layerId) ?? null;
-  // the picker is two tiers: a model chip (Nowcast / StormCast / HRRR) that
-  // opens to its layers. undefined = follow whichever model the current layer
-  // is from. Nowcast = the StormScope 0-6h radar lane (10-min frames).
+  // MRMS observations have their own group; they are never HRRR forecasts.
+  // undefined follows the current layer's group.
   const groupOf = (l: WxLayer) =>
-    l.source.includes('StormScope') ? 'Nowcast' : l.source.includes('StormCast') ? 'StormCast' : 'HRRR';
-  // chips in freshness order regardless of manifest order
-  const GROUP_ORDER = ['Nowcast', 'StormCast', 'HRRR'];
+    l.group ?? (l.source.includes('MRMS') ? 'MRMS' : l.source.includes('StormScope') ? 'Nowcast' : l.source.includes('StormCast') ? 'StormCast' : 'HRRR');
+  // Display groups in a fixed order regardless of manifest order.
+  const GROUP_ORDER = ['StormCast', 'Nowcast', 'MRMS', 'HRRR'];
   const groups = [...new Set(layers.map(groupOf))].sort((a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b));
   const [openGroup, setOpenGroup] = useState<string | null | undefined>(undefined);
   const shownGroup = openGroup === undefined ? (layer ? groupOf(layer) : null) : openGroup;
@@ -146,13 +153,14 @@ export default function ForecastView() {
   // variables); clamped for layers with fewer frames, like radar's single one
   const idx = layer ? Math.min(frame, layer.frames.length - 1) : 0;
 
-  // warm the browser cache so scrubbing never flashes white
+  // Keep upcoming previews warm without competing with visible detail tiles
+  // for dozens of full-domain frame downloads.
   useEffect(() => {
-    layer?.frames.forEach((f) => { new Image().src = `${WX_BASE}/${f.file}`; });
-  }, [layer]);
+    layer?.frames.slice(idx, idx + 3).forEach((f) => { new Image().src = `${WX_BASE}/${f.file}`; });
+  }, [layer, idx]);
 
   const overlays: Overlay[] = layer
-    ? [{ url: `${WX_BASE}/${layer.frames[idx].file}`, bounds: layer.bounds, opacity: layer.opacity }]
+    ? [{ url: `${WX_BASE}/${layer.frames[idx].file}`, bounds: layer.bounds, opacity: layer.opacity, tiles: layer.tiles }]
     : [];
 
   const stale = typeof manifest === 'object' && layer
@@ -173,8 +181,8 @@ export default function ForecastView() {
     if (hit === undefined) {
       valueCache.set(url, 'pending');
       fetch(url)
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-        .then((j: { v: (number | null)[] }) => { valueCache.set(url, j.v); bump((n) => n + 1); })
+        .then(readWeatherValues)
+        .then((values) => { valueCache.set(url, values); bump((n) => n + 1); })
         .catch(() => { valueCache.set(url, 'failed'); bump((n) => n + 1); });
       return '…';
     }
@@ -189,7 +197,7 @@ export default function ForecastView() {
 
   // the probe rides TileMap's existing pin machinery: a white dot whose
   // always-on label IS the readout
-  const probeSites: GlobeSite[] = probe
+  const probeSites: MapSite[] = probe
     ? [{ id: 'probe', name: valueAt(probe.lat, probe.lon), sub: 'point reading', lat: probe.lat, lon: probe.lon, tone: '#ffffff' }]
     : [];
 
@@ -208,7 +216,7 @@ export default function ForecastView() {
         initial={HOME}
         dur={1}
         tileUrl={LIGHT_TILES}
-        attribution={LIGHT_ATTR}
+        attribution={`Basemap: Esri${layer ? `. ${layer.source.replace(/\s*·\s*/g, ', ')}` : ''}`}
         minZ={5}
         maxZ={15}
         overlays={overlays}
@@ -254,8 +262,8 @@ export default function ForecastView() {
           <div style={{ fontFamily: RESIPLE, fontSize: 10.5, letterSpacing: '0.06em', color: stale ? '#8a5f10' : '#3d4a55', textShadow: HALO }}>
             {/* the manifest's source strings carry separator dots; the line
                 rendered here stays plain: name, then the init cycle */}
-            Forecast: {layer.source.includes('StormScope') ? 'Local StormScope nowcast' : layer.source.includes('StormCast') ? 'Local StormCast run' : layer.source.replace(/\s*·\s*/g, ', ')}
-            {layer.kind === 'forecast' && layer.init ? `, init ${fmtInit(layer.init)}` : ''}
+            {layer.kind === 'obs' ? 'Observation' : 'Forecast'}: {layer.source.includes('StormScope') ? 'Local StormScope nowcast' : layer.source.includes('StormCast') ? 'Local StormCast run' : layer.source.replace(/\s*·\s*/g, ', ')}
+            {layer.kind === 'forecast' && layer.init ? `, init ${fmtValid(layer.init)}` : ''}
           </div>
         )}
       </div>
