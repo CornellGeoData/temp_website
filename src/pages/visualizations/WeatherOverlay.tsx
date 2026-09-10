@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { latToY, lonToX, visibleRasterTiles, type Rect } from './mercator';
 import type { Overlay } from './TileMap';
+import { imageCache } from './wxClient';
 
 export default function WeatherOverlay({ overlay, view, size }: {
   overlay: Overlay;
@@ -8,16 +9,13 @@ export default function WeatherOverlay({ overlay, view, size }: {
   size: { w: number; h: number };
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  // TileMap keys this component by frame URL, so old frames cannot paint over
-  // the current one and decoded images are released when the frame changes.
-  const imageCache = useRef(new Map<string, HTMLImageElement>());
   const dpr = window.devicePixelRatio || 1;
 
   useLayoutEffect(() => {
     const context = canvas.current?.getContext('2d');
     if (!context || !size.w || !size.h) return;
     const ctx = context;
-    const images = imageCache.current;
+    const images = imageCache;
     const { bounds, tiles, url } = overlay;
     const { zoom } = view;
     const imageRect = {

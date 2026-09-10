@@ -2,9 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import TileMap, { type MapTarget, type Overlay } from './TileMap';
 import type { MapSite } from './sensorData';
 import { RESIPLE } from '../../styles/theme';
-
-// Weather maps and value grids are published separately from the website.
-const WX_BASE = import.meta.env.VITE_WX_BASE || 'https://cornellgeodata.github.io/geodata-wx';
+import { WX_BASE, fetchManifest, readWeatherValues, loadImage, type Frame, type Scale, type WxLayer, type Manifest } from './wxClient';
 
 // Esri's light-gray canvas: keyless like the imagery layer, white enough that
 // conventional weather colors carry all the meaning. Levels stop at 16.
@@ -15,39 +13,8 @@ const LIGHT_TILES = (z: number, x: number, y: number) =>
 const INITIAL_SMALL = window.matchMedia('(max-width: 720px)').matches;
 const HOME = { lat: 42.75, lon: -76.6, zoom: INITIAL_SMALL ? 8.2 : 9 };
 
-interface Frame { file: string; valid: string; data?: string }
-// per-layer regular grid of point values (row 0 = north edge, row-major),
-// published next to the PNGs so a click can read the actual number
-interface ValuesMeta { n: number; s: number; w: number; e: number; rows: number; cols: number; unit: string }
-// the colour scale as data - rendered as a real DOM element, not a raster
-interface Scale {
-  type: 'steps' | 'gradient';
-  label: string;
-  bounds?: number[];
-  colors?: string[];
-  over?: string;
-  min?: number;
-  max?: number;
-  stops?: string[];
-}
-interface WxLayer {
-  id: string;
-  label: string;
-  source: string;
-  kind: 'obs' | 'forecast';
-  init: string | null;
-  stale_minutes: number;
-  group?: string;
-  expected_update_at?: string;
-  valid_until?: string;
-  accumulation_start?: string;
-  opacity: number;
-  bounds: { n: number; s: number; w: number; e: number };
-  tiles?: { width: number; height: number; size: number };
-  scale?: Scale;
-  values?: ValuesMeta;
-  frames: Frame[];
-}
+// fallback when the manifest doesn't publish its own group_order
+const DEFAULT_GROUP_ORDER = ['StormCast', 'Nowcast', 'MRMS', 'HRRR'];
 
 // the key sits straight on the map - no card. Black ink with a white halo
 // reads on the light basemap and any overlay alike. Vertical, highest value
@@ -94,7 +61,6 @@ function ColorScale({ scale, small }: { scale: Scale; small: boolean }) {
     </div>
   );
 }
-interface Manifest { version: number; generated: string; layers: WxLayer[]; status?: { degraded?: boolean; reason?: string } }
 
 const PANEL: React.CSSProperties = {
   background: 'rgba(14,20,28,0.82)', backdropFilter: 'blur(6px)',
@@ -103,22 +69,6 @@ const PANEL: React.CSSProperties = {
 
 const fmtValid = (iso: string) =>
   new Date(iso).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
-
-async function readWeatherValues(response: Response): Promise<(number | null)[]> {
-  if (!response.ok) throw new Error(`Weather values: HTTP ${response.status}`);
-  const bytes = await response.arrayBuffer();
-  const header = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
-  const body = new Blob([bytes]).stream();
-  // GitHub Pages serves .json.gz as a file, without Content-Encoding. Check
-  // the bytes so plain JSON and responses already decoded by fetch also work.
-  const decoded = header[0] === 0x1f && header[1] === 0x8b
-    ? body.pipeThrough(new DecompressionStream('gzip'))
-    : body;
-  const { v } = await new Response(decoded).json();
-  if (!Array.isArray(v)) throw new Error('Weather values: missing grid');
-  return v;
-}
-
 
 // Preserve the requested valid time when switching hourly and ten-minute products.
 function nearestFrame(frames: { valid: string }[], time: number): number {
@@ -163,10 +113,7 @@ export default function WeatherForecast() {
       if (fetching || document.hidden) return;
       fetching = true;
       try {
-        const response = await fetch(`${WX_BASE}/latest.json`, { cache: 'no-cache', signal: AbortSignal.timeout(15_000) });
-        if (!response.ok) throw new Error(String(response.status));
-        const m: Manifest = await response.json();
-        if (!Array.isArray(m.layers) || !m.layers.every(l => Array.isArray(l.frames))) throw new Error('Invalid weather feed');
+        const m = await fetchManifest();
         if (alive) { setManifest(m); setRefreshError(false); }
       } catch {
         if (alive) {
@@ -185,10 +132,10 @@ export default function WeatherForecast() {
     !['stormcast_rain', 'stormcast_precip'].includes(l.id) && l.frames.length > 0)
     .sort((a, b) => Number(b.id.endsWith('refc')) - Number(a.id.endsWith('refc'))) : [];
   const layer = layers.find(l => l.id === layerId) ?? layers.find(l => l.id === 'stormcast_refc') ?? layers.find(l => l.id === 'radar_refc') ?? layers[0] ?? null;
-  const groupOf = (l: WxLayer) => l.id === 'radar_refc' || l.source.includes('MRMS') ? 'MRMS' : l.group ??
-    (l.source.includes('StormScope') ? 'Nowcast' : l.source.includes('StormCast') ? 'StormCast' : 'HRRR');
-  const GROUP_ORDER = ['StormCast', 'Nowcast', 'MRMS', 'HRRR'];
-  const groups = [...new Set(layers.map(groupOf))].sort((a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b));
+  const groupOf = (l: WxLayer) => l.group ??
+    (l.source.includes('MRMS') ? 'MRMS' : l.source.includes('StormScope') ? 'Nowcast' : l.source.includes('StormCast') ? 'StormCast' : 'HRRR');
+  const resolvedGroupOrder = (typeof manifest === 'object' && manifest.group_order) || DEFAULT_GROUP_ORDER;
+  const groups = [...new Set(layers.map(groupOf))].sort((a, b) => resolvedGroupOrder.indexOf(a) - resolvedGroupOrder.indexOf(b));
   const [openGroup, setOpenGroup] = useState<string | null | undefined>(undefined);
   const shownGroup = openGroup === undefined ? (layer ? groupOf(layer) : null) : openGroup;
   const idx = layer ? nearestFrame(layer.frames, requestedTime ?? now) : 0;
@@ -197,17 +144,15 @@ export default function WeatherForecast() {
   useEffect(() => {
     if (!layer || !selectedFrame) return;
     let alive = true;
-    const img = new Image();
     setImageError(false);
     const timeout = window.setTimeout(() => { if (alive) setImageError(true); }, 15_000);
-    img.src = `${WX_BASE}/${selectedFrame.file}`;
-    void img.decode().then(() => {
+    void loadImage(`${WX_BASE}/${selectedFrame.file}`).then(() => {
       if (!alive) return;
       clearTimeout(timeout);
       setImageError(false);
       setReady({ layer, frame: selectedFrame });
       // Only warm the next two frames. A 49-hour layer should not download on selection.
-      layer.frames.slice(idx + 1, idx + 3).forEach(f => { new Image().src = `${WX_BASE}/${f.file}`; });
+      layer.frames.slice(idx + 1, idx + 3).forEach(f => { void loadImage(`${WX_BASE}/${f.file}`); });
     }).catch(() => { if (alive) setImageError(true); });
     return () => { alive = false; clearTimeout(timeout); };
   }, [layer, selectedFrame, idx, retry]);
