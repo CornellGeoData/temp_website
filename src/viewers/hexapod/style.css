@@ -24,10 +24,8 @@ select{background:#1b2833;border:0;color:#dce5eb;padding:5px 8px;min-height:32px
 .joint-value input::-webkit-inner-spin-button,.joint-value input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .joint-value input:hover,.joint-value input:focus{background:#ffffff08}
 .joint input[type=range]{display:block;width:100%;height:22px;margin:1px 0 0;accent-color:#7ed7ae;cursor:pointer}
-.pose-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px}
-.pose-buttons button,.play-button{background:#ffffff08;border:0;padding:7px;color:#a7b8c2;font-size:13px;min-height:34px}
-.pose-buttons button:hover,.play-button:hover{background:#7ed7ae12;color:#e6ecf0}
-.pose-buttons button[aria-pressed=true]{color:#9bdfbb;background:#7ed7ae16}
+.play-button{background:#ffffff08;border:0;padding:7px;color:#a7b8c2;font-size:13px;min-height:34px}
+.play-button:hover{background:#7ed7ae12;color:#e6ecf0}
 .control-section{margin-top:14px}
 .control-section summary{font-size:14px}.control-section[open] summary{margin-bottom:10px}
 .control-section .quality-row,.control-section .class-row{font-size:14px;margin-top:8px}
@@ -43,14 +41,16 @@ select{background:#1b2833;border:0;color:#dce5eb;padding:5px 8px;min-height:32px
 #loading{border:0}
 #loading[data-error]{color:#ffb6ac;border-color:#ffb6ac55}#loading[data-error] .pulse{display:none}
 @media(max-width:720px){
-  .controls-stack{top:auto;bottom:64px;left:14px;right:14px;width:auto;max-width:360px}
+  .controls-stack{top:auto;bottom:64px;left:14px;right:14px;width:auto;max-width:360px;margin:0 auto}
   .panel{padding:12px;max-height:45dvh}
   .panel-title{margin-bottom:10px}.view-angles{margin-bottom:12px}
   .view-angles button{min-height:38px}
   .leg-select{margin-bottom:10px}.joint{margin-top:8px}
   .joint input[type=range]{height:22px}
-  .pose-buttons{margin-top:10px}.control-section{margin-top:12px}
-  footer{bottom:14px;right:185px}.hint{font-size:12px;line-height:1.4}
+  .control-section{margin-top:12px}
+  /* the base sheet drops the footer and bares the about button; the hexapod
+     keeps that button in the right corner, clear of the centred panel */
+  .about{left:auto;right:14px}.about-content{left:auto;right:0}
   #loading{top:24px;bottom:auto;max-width:calc(100% - 40px)}
   #point-info{top:70px;bottom:auto;left:14px}
   .about-content{max-height:65dvh}

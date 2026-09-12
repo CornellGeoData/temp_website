@@ -103,7 +103,7 @@ export function SponsorsPage() {
         {/* no column gap: the packet's flex box runs from the text column's
             right edge to the container's, so centering inside it splits the
             space evenly; the row gap only matters once the packet wraps */}
-        <div style={{ display: 'flex', rowGap: 'clamp(32px,4vw,64px)', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="sponsor-hero" style={{ display: 'flex', rowGap: 'clamp(48px,4vw,64px)', flexWrap: 'wrap', alignItems: 'center', minHeight: 'calc(100vh - 150px)' }}>
           <div style={{ flex: '0 1 560px', minWidth: 300 }}>
             <h2 style={H2}>Sponsorships &amp; Donations</h2>
             <p style={{ ...BODY, maxWidth: 620, margin: '26px 0 0' }}>Students design and build every instrument we deploy. Sponsorships pay for parts and field deployments.</p>

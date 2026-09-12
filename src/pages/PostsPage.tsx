@@ -69,7 +69,7 @@ export function PostPage({ post }: { post: Post }) {
 
 export function PostsPage({ filter, onFilter }: { filter: 'all' | 'project' | 'blog'; onFilter: (f: 'all' | 'project' | 'blog') => void }) {
   return (
-    <section style={{ ...SUBPAGE, paddingTop: 'clamp(84px, 19vw, 150px)' }}>
+    <section style={SUBPAGE}>
       <div style={{ maxWidth: 940, margin: '0 auto' }}>
         <h2 style={H2}>Posts</h2>
         <div style={{ display: 'flex', gap: 26, marginTop: 36 }}>
@@ -78,7 +78,7 @@ export function PostsPage({ filter, onFilter }: { filter: 'all' | 'project' | 'b
               key={value}
               type="button"
               onClick={() => onFilter(value)}
-              style={{ appearance: 'none', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 0 6px', fontFamily: RESIPLE, fontSize: 17, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: filter === value ? '#e6ecf0' : '#7c909b', borderBottom: `2px solid ${filter === value ? '#4fae7d' : 'transparent'}` }}
+              style={{ appearance: 'none', background: 'transparent', border: 'none', cursor: 'pointer', padding: '9px 0 10px', fontFamily: RESIPLE, fontSize: 17, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: filter === value ? '#e6ecf0' : '#7c909b', borderBottom: `2px solid ${filter === value ? '#4fae7d' : 'transparent'}` }}
             >
               {label}
             </button>

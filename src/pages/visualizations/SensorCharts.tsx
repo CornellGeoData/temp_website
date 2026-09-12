@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { RESIPLE } from '../../styles/theme';
 import {
-  EGG_CHANNELS, NEWA_CHANNELS, RATINGS, aqiCat, aqiSeries, fmtTime, thin, isF, toC,
+  EGG_CHANNELS, NEWA_CHANNELS, RATINGS, fmtTime, thin, isF, toC,
   type SensorPoint, type Rating,
 } from './sensorData';
 
@@ -286,13 +286,9 @@ export function WeatherCharts({ series, unit }: { series: { key: string; points:
 
 export function EggCharts({ series, unit }: { series: { key: string; points: SensorPoint[] }[]; unit: 'C' | 'F' }) {
   const charts = EGG_CHANNELS.map((c) => ({ ...c, series: series.find((s) => s.key === c.key) })).filter((c) => c.series);
-  const aqiPts = thin(aqiSeries(series));
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(320px,100%),1fr))', gap: 18 }}>
-        {aqiPts.length > 1 && (
-          <SensorChart label="Air Quality Index" unit="" points={aqiPts} y0={0} minSpan={100} rating={(v) => aqiCat(v)} />
-        )}
         {charts.map((c) => {
           let points = c.scale ? c.series!.points.map((p) => ({ t: p.t, v: c.scale!(p.v) })) : c.series!.points;
           let chartUnit = c.unit;

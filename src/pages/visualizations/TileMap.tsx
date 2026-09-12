@@ -321,9 +321,9 @@ export default function TileMap({ sites, selectedIds, onSelect, target, initial,
 
       {/* phones: the bottom edge belongs to the legend and the card sheet, so
           the credit line rides the top-left instead */}
-      <span style={{ position: 'absolute', ...(SMALL ? { left: 6, top: 4 } : { right: 12, bottom: 12 }), fontFamily: RESIPLE, fontSize: SMALL ? 8.5 : 10.5, color: 'rgba(230,236,240,0.75)', textShadow: '0 1px 3px rgba(0,0,0,0.9)', pointerEvents: 'none' }}>
+      {attribution && <span style={{ position: 'absolute', ...(SMALL ? { left: 6, top: 4 } : { right: 12, bottom: 12 }), fontFamily: RESIPLE, fontSize: SMALL ? 8.5 : 10.5, color: 'rgba(230,236,240,0.75)', textShadow: '0 1px 3px rgba(0,0,0,0.9)', pointerEvents: 'none' }}>
         {attribution}
-      </span>
+      </span>}
     </div>
   );
 }

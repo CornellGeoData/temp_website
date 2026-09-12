@@ -105,15 +105,6 @@ a:hover {
   color: #84d3ab;
 }
 
-.stage-menu-overlay {
-  padding: 122px 20px 20px;
-}
-
-body:has(.stage-menu-overlay) .site-header-shell {
-  z-index: 1001 !important;
-  transform: translateY(0) !important;
-}
-
 /* headline links (project cards, post feed): inherit the heading color, tint
    whole block on hover */
 .post-link {
@@ -177,6 +168,14 @@ details[open] > summary .chev::before {
   color: #0e141c;
 }
 
+/* no earth beside it: the copy takes the whole stage rather than sitting in
+   a half-width column with empty space where the globe would have been */
+.hero-panel-solo {
+  width: 100% !important;
+  padding: 0 24px !important;
+  justify-content: center !important;
+}
+
 .globe-sticky {
   height: 100vh;
   height: 100dvh;
@@ -195,31 +194,10 @@ details[open] > summary .chev::before {
   to { transform: scale(1); opacity: 1; }
 }
 
-@media (max-width: 720px) {
-  /* narrow pit can't spread the balls sideways, so give it room downward */
-  .alumni-pit {
-    height: 620px !important;
-  }
-
-  /* stack post rows so text isn't squeezed beside the thumbnail */
-  .post-row {
-    grid-template-columns: 1fr !important;
-  }
-
-  .site-header {
-    padding: 10px 12px !important;
-  }
-
-  .stage-menu-overlay {
-    padding-top: 80px;
-  }
-
-  .site-nav {
-    gap: 10px !important;
-    font-size: 13px !important;
-  }
-
-  /* links collapse into the burger menu on phones */
+/* measured: the logo block ends at 297px and the five links plus the Join
+   button run 615px, so side by side they need ~955px before they touch. The
+   links fold into the burger above phone width, well before that happens. */
+@media (max-width: 980px) {
   .site-nav-links {
     display: none !important;
   }
@@ -231,6 +209,33 @@ details[open] > summary .chev::before {
   .nav-menu {
     display: flex !important;
   }
+}
+
+@media (max-width: 720px) {
+  /* narrow pit can't spread the balls sideways, so give it room downward */
+  .alumni-pit {
+    height: 620px !important;
+  }
+
+  /* the packet wraps under the copy here, so the gap between them carries the
+     same weight as the space below the board (110px to the tiers) */
+  .sponsor-hero {
+    row-gap: 96px !important;
+  }
+
+  /* stack post rows so text isn't squeezed beside the thumbnail */
+  .post-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .site-header {
+    padding: 10px 12px !important;
+  }
+
+  .site-nav {
+    gap: 10px !important;
+    font-size: 13px !important;
+  }
 
   .logo-link {
     gap: 8px !important;
@@ -241,10 +246,11 @@ details[open] > summary .chev::before {
     height: 40px !important;
   }
 
-  /* measured: the wordmark (95px) pushes total header content to 414px,
-     wider than any phone - the hero h1 right below repeats the name anyway */
+  /* the wordmark stays beside the mark, sized off the screen: measured at
+     5px of width per 1px of font, 4.8vw keeps it clear of the nav down to a
+     320px screen and still reads at 430px */
   .logo-text {
-    display: none !important;
+    font-size: clamp(15px, 4.8vw, 24px) !important;
   }
 
   /* 15.5vw keeps the h1 within the 48px side padding at every width;
@@ -254,15 +260,8 @@ details[open] > summary .chev::before {
   }
 
   .nav-join-btn {
-    padding: 7px 12px !important;
+    padding: 10px 14px !important;
     font-size: 13px !important;
-  }
-
-  /* static earth still behind the hero on mobile; the copy centers over it */
-  .hero-panel {
-    width: 100% !important;
-    padding: 0 24px !important;
-    justify-content: center !important;
   }
 
   #projects,

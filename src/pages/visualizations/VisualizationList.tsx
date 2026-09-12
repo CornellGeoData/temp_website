@@ -16,7 +16,6 @@ export function VisualizationList() {
                   <h3 style={{ fontFamily: RESIPLE, fontWeight: 700, fontSize: 'clamp(20px,2vw,24px)', margin: 0 }}>{s.label}</h3>
                   <p style={{ fontSize: 15, lineHeight: 1.6, color: '#a9bcc6', maxWidth: '64ch', margin: '9px 0 0' }}>{s.blurb}</p>
                 </div>
-                <span aria-hidden="true" style={{ fontSize: 24, color: '#84d3ab' }}>→</span>
               </a>
             </li>
           ))}
@@ -24,7 +23,7 @@ export function VisualizationList() {
         <style>{`
           .visualization-project {
             display: grid;
-            grid-template-columns: 240px minmax(0, 1fr) 24px;
+            grid-template-columns: 240px minmax(0, 1fr);
             align-items: center;
             gap: 32px;
             padding: 12px;
@@ -39,7 +38,7 @@ export function VisualizationList() {
           }
           @media (max-width: 600px) {
             .visualization-project {
-              grid-template-columns: minmax(0, 1fr) 20px;
+              grid-template-columns: minmax(0, 1fr);
               gap: 18px 12px;
               padding: 12px 8px;
             }

@@ -20,12 +20,9 @@ export function animationPose({mode, phase, basePose, stancePose, legs, kinds, l
   } else {
     const kind = joint;
     if (!kinds.includes(kind)) throw new Error(`Unknown inspection joint ${kind}`);
-    const selected = leg === 'all' ? legs : [leg];
+    if (!legs.includes(leg)) throw new Error(`Unknown inspection leg ${leg}`);
     const {lower, upper} = limits[kind];
-    for (const selectedLeg of selected) {
-      if (!legs.includes(selectedLeg)) throw new Error(`Unknown inspection leg ${selectedLeg}`);
-      result[`${selectedLeg}_${kind}`] = lower + (upper - lower) * blend;
-    }
+    result[`${leg}_${kind}`] = lower + (upper - lower) * blend;
   }
   for (const name of Object.keys(result)) {
     const kind = name.split('_').slice(1).join('_'), {lower, upper} = limits[kind];

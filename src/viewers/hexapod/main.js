@@ -61,6 +61,9 @@ async function start() {
   grid.rotation.x = Math.PI / 2;
   scene.add(grid);
   let framing = 1;
+  // the panel starts closed, so the robot opens dead centre; the offsets below
+  // only step it aside while the panel is actually covering that corner
+  const panel = document.querySelector('.panel');
   const resize = () => {
     const { width, height } = stage.getBoundingClientRect();
     const nextFraming = width > 720 ? 1 : Math.max(1, height / width * 0.9);
@@ -69,13 +72,15 @@ async function start() {
     orbit.maxDistance = Math.max(3, framing * 2);
     camera.aspect = width / height;
     // Reserve room for the floating panel without shrinking the canvas.
-    camera.setViewOffset(width, height, width > 720 ? -140 : 0, width > 720 ? 0 : height * 0.22, width, height);
+    const wide = width > 720;
+    camera.setViewOffset(width, height, panel.open && wide ? -140 : 0, panel.open && !wide ? height * 0.22 : 0, width, height);
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
     requestRender();
   };
   const observer = new ResizeObserver(resize);
   observer.observe(stage);
+  panel.addEventListener('toggle', resize);
   resize();
   const views = { iso: [0.90, -1.05, 0.68], top: [0, -0.001, 1.5], front: [0, -1.4, 0.25], side: [1.4, 0, 0.25] };
   function setView(name) {
@@ -153,12 +158,10 @@ async function start() {
       if (!editing || document.activeElement !== $(`n_${kind}`)) $(`n_${kind}`).value = value.toFixed(1);
     }
   }
-  function setPose(values, preset = null, editing = false) {
+  function setPose(values, editing = false) {
     q = { ...values };
     for (const [name, value] of Object.entries(q)) robot?.setJointValue(name, value);
     syncControls(editing);
-    $('standing').setAttribute('aria-pressed', preset === 'standing');
-    $('zero').setAttribute('aria-pressed', preset === 'zero');
     if (robot && footSpheres.length) {
       robot.updateMatrixWorld(true);
       const lowest = Math.min(...footSpheres.map(({ link, center, radius }) => center.clone().applyMatrix4(robot.links[link].matrixWorld).z - radius));
@@ -177,7 +180,7 @@ async function start() {
     pause();
     if (!Number.isFinite(value)) { syncControls(); return; }
     const { lower, upper } = limits[kind];
-    setPose({ ...q, [`${$('leg').value}_${kind}`]: THREE.MathUtils.clamp(rad(value), lower, upper) }, null, true);
+    setPose({ ...q, [`${$('leg').value}_${kind}`]: THREE.MathUtils.clamp(rad(value), lower, upper) }, true);
   }
   for (const kind of KINDS) {
     const row = document.createElement('div');
@@ -196,8 +199,7 @@ async function start() {
     $(`n_${kind}`).onblur = () => syncControls();
   }
   $('leg').onchange = () => { pause(); syncControls(); clearPart(); };
-  $('standing').onclick = $('reset').onclick = () => { pause(); setPose(stancePose, 'standing'); };
-  $('zero').onclick = () => { pause(); setPose(Object.fromEntries(Object.keys(q).map(name => [name, 0])), 'zero'); };
+  $('reset').onclick = () => { pause(); setPose(stancePose); };
 
   function disposeRobot(previous) {
     if (!previous) return;
@@ -262,7 +264,7 @@ async function start() {
     $('play').querySelector('path').setAttribute('d', 'M4 3h3v10H4ZM9 3h3v10H9Z');
     requestRender();
   };
-  for (const id of ['motion', 'motion-joint', 'all-legs']) $(id).onchange = () => {
+  for (const id of ['motion', 'motion-joint']) $(id).onchange = () => {
     pause();
     phase = 0;
     $('sweep-controls').hidden = $('motion').value !== 'joint';
@@ -300,7 +302,7 @@ async function start() {
       motionTime += dt;
       phase += dt * Number($('speed').value) * 2 * Math.PI / ($('motion').value === 'gait' ? 1.6 : 8);
       lastTime = now;
-      setPose(animationPose({ mode: $('motion').value, phase, basePose: animationBase, stancePose, legs: LEGS, kinds: KINDS, limits, leg: $('all-legs').checked ? 'all' : $('leg').value, joint: $('motion-joint').value, transition: Math.min(motionTime * 2, 1) }));
+      setPose(animationPose({ mode: $('motion').value, phase, basePose: animationBase, stancePose, legs: LEGS, kinds: KINDS, limits, leg: $('leg').value, joint: $('motion-joint').value, transition: Math.min(motionTime * 2, 1) }));
     }
     orbit.update();
     renderer.render(scene, camera);
@@ -324,7 +326,7 @@ async function start() {
     renderer.dispose();
   });
   await loadModel('linkage');
-  setPose(stancePose, 'standing');
+  setPose(stancePose);
 }
 
 function showError(error) {

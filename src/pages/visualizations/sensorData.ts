@@ -53,15 +53,15 @@ export function eggSeries(raw: unknown): { key: string; points: SensorPoint[] }[
 // channels rendered in this order when present in the feed. PM readings in clean
 // air sit near 0 and quantize in ~0.1 steps, so those charts pin the baseline to
 // 0 with a minimum y-span instead of autoscaling the noise to full height.
-// the first three, with the AQI trace ahead of them, are the four charts a
+// the first four are the charts a
 // card shows at its opening size; the rest follow on scroll
 export const EGG_CHANNELS: { key: string; label: string; unit: string; scale?: (v: number) => number; y0?: number; minSpan?: number; epaBands?: boolean; footnote?: string }[] = [
-  { key: 'pm2p5', label: 'PM2.5', unit: 'µg/m³', epaBands: true, footnote: '* EPA AQI "Good" ceiling: 9 µg/m³ (2024 annual standard)' },
   // pm10p0 isn't charted but still feeds the AQI badge via AQI_BP
   // minSpan keeps a channel's ordinary wiggle from autoscaling to full height:
   // the plot only stretches when something actually happens
   { key: 'co2', label: 'CO2', unit: 'ppm', minSpan: 80 },
   { key: 'temperature', label: 'Temperature', unit: '°C', minSpan: 6 },
+  { key: 'pm2p5', label: 'PM2.5', unit: 'µg/m³', epaBands: true, footnote: '* EPA AQI "Good" ceiling: 9 µg/m³ (2024 annual standard)' },
   { key: 'pm1p0', label: 'PM1.0', unit: 'µg/m³', y0: 0, minSpan: 15 },
   { key: 'no2', label: 'NO2', unit: 'ppb', y0: 0, minSpan: 50 },
   { key: 'o3', label: 'O3', unit: 'ppb', y0: 0, minSpan: 50 },
@@ -254,10 +254,10 @@ export const NEWA_CHANNELS: { key: string; label: string; unit: string; y0?: num
   { key: 'temp', label: 'Temperature', unit: '°F', minSpan: 10 },
   { key: 'dwpt', label: 'Dew point', unit: '°F', minSpan: 10 },
   { key: 'rhum', label: 'Humidity', unit: '%', minSpan: 15 },
-  { key: 'prcp', label: 'Precipitation', unit: 'in/hr', y0: 0, minSpan: 0.25 },
-  { key: 'wspd', label: 'Wind speed', unit: 'mph', y0: 0, minSpan: 12 },
   // wdir draws as a wind rose, not a line; the entry also names its CSV column
   { key: 'wdir', label: 'Wind direction', unit: 'deg' },
+  { key: 'prcp', label: 'Precipitation', unit: 'in/hr', y0: 0, minSpan: 0.25 },
+  { key: 'wspd', label: 'Wind speed', unit: 'mph', y0: 0, minSpan: 12 },
   { key: 'srad', label: 'Solar radiation', unit: 'W/m²', y0: 0, minSpan: 400 },
 ];
 
@@ -299,14 +299,3 @@ export function newaTable(series: { key: string; points: SensorPoint[] }[], unit
   };
 }
 
-// US AQI as a trace, not a badge: the per-sample sub-index for PM2.5 and
-// PM10, worse of the two at each timestamp
-export function aqiSeries(series: { key: string; points: SensorPoint[] }[]): SensorPoint[] {
-  const by = new Map<number, number>();
-  (['pm2p5', 'pm10p0'] as const).forEach((k) => {
-    series.find((s) => s.key === k)?.points.forEach((p) => {
-      by.set(p.t, Math.max(by.get(p.t) ?? 0, aqiFrom(p.v, AQI_BP[k])));
-    });
-  });
-  return [...by.entries()].map(([t, v]) => ({ t, v })).sort((a, b) => a.t - b.t);
-}

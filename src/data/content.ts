@@ -23,6 +23,7 @@ export interface Project {
   photo2?: string; // second image, shown side by side on the full-width card
   photoPosition?: string; // object-position focal point within the crop frame
   photoAspect?: string; // card image aspect ratio; defaults to 16/10
+  viewer?: { href: string; label: string }; // a live visualization to open from the card
 }
 
 export const PROJECTS: Project[] = [
@@ -69,6 +70,7 @@ export const PROJECTS: Project[] = [
     title: 'LiDAR Hexapod',
     body: 'A LiDAR-equipped hexapod is being developed with Cornell Physical Intelligence for ground surveys. Its scans are intended to complement UAV point clouds in 3D terrain mapping.',
     photo: '/projects/hexapod.webp',
+    viewer: { href: '#/sensors/lidar', label: 'Open the LiDAR viewer' },
   },
   {
     tag: 'Coming soon',
@@ -181,8 +183,8 @@ export const SPONSOR_PACKET_PDF = '/sponsorship/packet.pdf';
 
 // Mohs hardness ladder (quartz 7 < topaz 8 < ruby/corundum 9 < diamond 10)
 export const TIERS = [
-  { name: 'Quartz', color: '#6d9dcd', amount: '$500+', perks: ['Logo on our website', 'Decal on a soil-moisture node at the Game Farm site', 'Thank-you in the alumni newsletter'] },
-  { name: 'Topaz', color: '#c1703f', amount: '$1,500+', perks: ['Everything in Quartz', 'Decal on a Cayuga Lake sensor station, photographed on deployment day', 'Team resume book', 'Social media feature from the field'] },
+  { name: 'Quartz', color: '#6d9dcd', amount: '$500+', perks: ['Team resume book', 'Decal on a soil-moisture node at the Game Farm site', 'Thank-you in the alumni newsletter'] },
+  { name: 'Topaz', color: '#c1703f', amount: '$1,500+', perks: ['Everything in Quartz', 'Decal on a Cayuga Lake sensor station, photographed on deployment day', 'Logo on our website', 'Social media feature from the field'] },
   { name: 'Ruby', color: '#c92556', amount: '$3,000+', perks: ['Everything in Topaz', 'Decal on the tethersonde, flown to 500 feet', 'Logo on team apparel', 'Job postings featured in the alumni newsletter', 'Info session or recruiting event with the team'] },
   { name: 'Diamond', color: '#8b3fbf', amount: '$5,000+', perks: ['Everything in Ruby', 'Decal on the LiDAR hexapod robot and the survey drone', 'A sensor site around the lake named after you', 'First invite to demo day'] },
 ];

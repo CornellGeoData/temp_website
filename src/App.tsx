@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { RESIPLE, MANTI, H2, SUBPAGE } from './styles/theme';
 import { PARTNERS, openApplications, shortDate } from './data/content';
 import { LEGAL_PAGES } from './data/legal';
@@ -6,8 +6,11 @@ import { POSTS } from './data/posts';
 import { HomePage } from './pages/home/HomePage';
 import { PostPage, PostsPage } from './pages/PostsPage';
 import { SponsorsPage } from './pages/sponsors/SponsorsPage';
-import { VisualizationsPage } from './pages/visualizations/VisualizationsPage';
 import { MembersPage } from './pages/MembersPage';
+
+// the data section carries the charts, the map, and the soil archive: a third
+// of the bundle, for a page most readers never open. It loads on demand.
+const VisualizationsPage = lazy(() => import('./pages/visualizations/VisualizationsPage').then((m) => ({ default: m.VisualizationsPage })));
 
 export default function App() {
   const [route, setRoute] = useState(window.location.hash);
@@ -123,7 +126,7 @@ export default function App() {
       ) : onPostsPage ? (
       <PostsPage filter={postFilter} onFilter={setPostFilter} />
       ) : onSensorsPage ? (
-      <VisualizationsPage />
+      <Suspense fallback={null}><VisualizationsPage /></Suspense>
       ) : onSponsorsPage ? (
       <SponsorsPage />
       ) : onMembersPage ? (

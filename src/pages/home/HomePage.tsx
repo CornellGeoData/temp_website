@@ -150,6 +150,7 @@ export function HomePage() {
                   )}
                 </h3>
                 {proj.body && <p style={{ fontSize: 15.5, lineHeight: 1.6, color: '#a9bcc6', margin: '12px 0 0' }}>{proj.body}</p>}
+                {proj.viewer && <a href={proj.viewer.href} style={{ display: 'inline-block', marginTop: 14, fontFamily: RESIPLE, fontSize: 14.5 }}>{proj.viewer.label} →</a>}
               </div>
             </article>
           ))}

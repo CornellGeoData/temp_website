@@ -4,8 +4,7 @@ import { RESIPLE, MANTI } from '../../styles/theme';
 import SensorMap from './SensorMap';
 import { VisualizationList } from './VisualizationList';
 import WeatherForecast from './WeatherForecast';
-import ViewLauncher from './ViewLauncher';
-import type { ViewId } from '../../data/visualizations';
+import { VISUALIZATIONS } from '../../data/visualizations';
 import {
   AIR, SOIL, WEATHER, EGGS, SOILMOTES, ARCHIVE, RETIRED, NEWA_STATIONS, RANGES,
   eggSeries, newaSeries, eggTable, soilTable, newaTable, downloadCsv, fmtTime, thin, clip, dm,
@@ -14,7 +13,7 @@ import {
 import { SensorChart, SoilCharts, WeatherCharts, EggCharts } from './SensorCharts';
 
 // square utility button, shared by the card headers and the static sheet
-const BTN: CSSProperties = { appearance: 'none', cursor: 'pointer', padding: '5px 11px', border: '1px solid rgba(255,255,255,0.22)', background: 'transparent', color: '#a9bcc6', fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 };
+const BTN: CSSProperties = { appearance: 'none', cursor: 'pointer', padding: '9px 11px', border: '1px solid rgba(255,255,255,0.22)', background: 'transparent', color: '#a9bcc6', fontFamily: RESIPLE, fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 };
 
 // empty state for a window with no samples; the page only fetches on load
 const OFFLINE = 'No readings came back for this window. Reload the page to try again.';
@@ -25,7 +24,7 @@ const EGG_MIN = { w: 420, h: 309 };
 const SOIL_MIN = { w: 420, h: 309 };
 
 // opening sizes: two charts wide, two tall, so a card lands showing four
-// plates - for the eggs that's AQI, PM2.5, CO2, and Temperature
+// plates - for the eggs that's CO2, Temperature, PM2.5, and PM1.0
 const EGG_OPEN = { w: 700, h: 580 };
 
 const SOIL_OPEN = { w: 700, h: 560 };
@@ -64,7 +63,6 @@ export function VisualizationsPage() {
   const [forecastView, setForecastView] = useState(stageFromHash() === 'forecast');
   const [lidarView, setLidarView] = useState(stageFromHash() === 'lidar');
   const [hexapodView, setHexapodView] = useState(stageFromHash() === 'hexapod');
-  const modelFrame = useRef<HTMLIFrameElement>(null);
   // the landing's links change the hash without remounting this page
   useEffect(() => {
     const onHash = () => {
@@ -102,57 +100,26 @@ export function VisualizationsPage() {
   const [range, setRange] = useState<TimeRange>('month');
   // the fixed site header stays for the globe stage and slides away while the
   // imagery (and the static sheet over it) has the screen. It lives in App,
-  // so it's styled directly.
-  // ...but peeks back while the mouse sits at the top edge, for navigation.
-  // The charts sheet is a page, not a map, so it keeps the header outright
+  // so it's styled directly. Each stage's X is the way back to the menu (and
+  // the header). The charts sheet is a page, not a map, so it keeps the
+  // header outright
   const headerHidden = !staticView && (mapView || forecastView || lidarView || hexapodView);
-  const [headerPeek, setHeaderPeek] = useState(false);
-  useEffect(() => {
-    if (!headerHidden) { setHeaderPeek(false); return; }
-    const updatePeek = (y: number) => {
-      const h = (header?.offsetHeight ?? 100) + (header?.querySelector<HTMLElement>('.nav-menu')?.offsetHeight ?? 0);
-      setHeaderPeek((p) => (y < 12 ? true : y > h + 24 ? false : p));
-    };
-    const onMove = (e: MouseEvent) => updatePeek(e.clientY);
-    // Pointer events inside a 3D viewer do not bubble to the site window.
-    const frame = modelFrame.current;
-    let frameWindow: Window | null = null;
-    const onFrameMove = (e: MouseEvent) => updatePeek(e.clientY + (frame?.getBoundingClientRect().top ?? 0));
-    const detachFrame = () => {
-      frameWindow?.removeEventListener('mousemove', onFrameMove);
-      frameWindow?.removeEventListener('pointerdown', onFrameMove);
-    };
-    const attachFrame = () => {
-      detachFrame();
-      frameWindow = frame?.contentWindow ?? null;
-      frameWindow?.addEventListener('mousemove', onFrameMove);
-      frameWindow?.addEventListener('pointerdown', onFrameMove);
-    };
-    const header = document.querySelector<HTMLElement>('.site-header');
-    const onHeaderFocus = () => setHeaderPeek(true);
-    window.addEventListener('mousemove', onMove);
-    header?.addEventListener('focusin', onHeaderFocus);
-    frame?.addEventListener('load', attachFrame);
-    attachFrame();
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      header?.removeEventListener('focusin', onHeaderFocus);
-      frame?.removeEventListener('load', attachFrame);
-      detachFrame();
-    };
-  }, [headerHidden, lidarView, hexapodView]);
   useEffect(() => {
     const bar = document.querySelector('.site-header')?.parentElement as HTMLElement | null;
     if (!bar) return;
     bar.style.transition = 'transform 300ms ease';
-    bar.style.transform = headerHidden && !headerPeek ? 'translateY(-100%)' : 'translateY(0)';
+    bar.style.transform = headerHidden ? 'translateY(-100%)' : 'translateY(0)';
     // Close the header menu without firing the stage's hash navigation listener.
-    if (headerHidden && !headerPeek) window.dispatchEvent(new Event('geodata:hide-header'));
+    if (headerHidden) window.dispatchEvent(new Event('geodata:hide-header'));
     return () => {
       bar.style.transition = '';
       bar.style.transform = '';
     };
-  }, [headerHidden, headerPeek]);
+  }, [headerHidden]);
+  // the 3D viewers need WebGL; without it the stage shows its still instead
+  const [noWebGL] = useState(() => {
+    try { const c = document.createElement('canvas'); return !(c.getContext('webgl2') || c.getContext('webgl')); } catch { return true; }
+  });
   // reflect the current stage into the hash so refresh and copied links land
   // where the reader was (replaceState fires no hashchange, so no loop)
   useEffect(() => {
@@ -175,70 +142,84 @@ export function VisualizationsPage() {
     ...RETIRED.map((r) => ({ id: r.name, name: r.name, sub: `Retired ${r.to}`, tone: SOIL, retired: true, labelBelow: r.labelBelow, ...dm(r.coords) })),
     ...NEWA_STATIONS.map((s) => ({ id: s.id, name: s.name, sub: s.location, tone: WEATHER, lat: s.lat, lon: s.lon })),
   ], []);
+  // Nothing here is fetched until a stage needs it: the menu, the LiDAR
+  // stage, and the hexapod stage read no sensors at all. Each feed runs once,
+  // guarded by a ref, since its gate can flip more than once in a session.
+  // liveData covers the map pins and the charts sheet; the two archives wait
+  // for an open card or the sheet, because only those show a lifetime trace.
+  const liveData = mapView || !!staticView;
+  const archives = !!staticView || open.length > 0;
+  const alive = useRef(true);
+  // set on the way in as well as out: StrictMode's practice unmount would
+  // otherwise leave it false and drop every response that lands after it
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+  const started = useRef<Record<string, boolean>>({});
+  // true the first time a gate opens, false forever after: the caller fetches
+  // on a true and skips on a false
+  const claim = (key: string, gate: boolean) => {
+    if (!gate || started.current[key]) return false;
+    started.current[key] = true;
+    return true;
+  };
   const [soil, setSoil] = useState<
     { status: 'loading' } | { status: 'error' } | { status: 'ready'; raw: Record<string, unknown> }
   >({ status: 'loading' });
 
   useEffect(() => {
-    let alive = true;
+    if (!claim('soil', liveData)) return;
     const url =
       `https://zynect.com/api/v2/messages/device/${SOILMOTES.map((m) => m.id).join(',')}` +
       `?dur=P1M&end-date=${new Date().toISOString()}&reduced=1&grouped=1`;
     fetch(url)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((raw) => alive && setSoil({ status: 'ready', raw: (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown> }))
-      .catch(() => alive && setSoil({ status: 'error' }));
-    return () => {
-      alive = false;
-    };
-  }, []);
+      .then((raw) => alive.current && setSoil({ status: 'ready', raw: (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown> }))
+      .catch(() => alive.current && setSoil({ status: 'error' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveData]);
 
   // NEWA stations, one POST each - absent id = still fetching, [] = offline.
   // station-local (NY) YYYYMMDDHH; the API rejects an edate past the current hour
   const stamp = (t: number) => new Date(t).toLocaleString('sv', { timeZone: 'America/New_York' }).replace(/\D/g, '').slice(0, 10);
-  const loadWx = (sdate: string, set: React.Dispatch<React.SetStateAction<Record<string, { key: string; points: SensorPoint[] }[]>>>, aliveRef: { current: boolean }) => NEWA_STATIONS.forEach((st) => {
+  const loadWx = (sdate: string, set: React.Dispatch<React.SetStateAction<Record<string, { key: string; points: SensorPoint[] }[]>>>) => NEWA_STATIONS.forEach((st) => {
     fetch('https://hrly.nrcc.cornell.edu/stnHrly', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sid: st.sid, sdate, edate: stamp(Date.now()) }),
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((raw) => aliveRef.current && set((m) => ({ ...m, [st.id]: newaSeries(raw) })))
-      .catch(() => aliveRef.current && set((m) => ({ ...m, [st.id]: [] })));
+      .then((raw) => alive.current && set((m) => ({ ...m, [st.id]: newaSeries(raw) })))
+      .catch(() => alive.current && set((m) => ({ ...m, [st.id]: [] })));
   });
   const [wx, setWx] = useState<Record<string, { key: string; points: SensorPoint[] }[]>>({});
   useEffect(() => {
-    const alive = { current: true };
-    loadWx(stamp(Date.now() - 31 * 86_400_000), setWx, alive);
-    return () => {
-      alive.current = false;
-    };
+    if (!claim('wx', liveData)) return;
+    loadWx(stamp(Date.now() - 31 * 86_400_000), setWx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [liveData]);
   // Lifetime is a set 5 years of hourly rows - ~4MB per station uncompressed,
   // so the archive fetch waits until someone actually picks Lifetime on the
   // weather tab, then runs once; charts show the month feed until it lands.
   // The server proxy keeps the bundle warm and gzipped (~2MB for all five
   // stations vs ~20MB straight from NRCC), so it lands in seconds.
   const [wxLife, setWxLife] = useState<Record<string, { key: string; points: SensorPoint[] }[]>>({});
-  const wxLifeStarted = useRef(false);
   useEffect(() => {
-    if (staticView !== 'weather' || range !== 'life' || wxLifeStarted.current) return;
-    wxLifeStarted.current = true;
-    const alive = { current: true };
+    if (!claim('wxLife', staticView === 'weather' && range === 'life')) return;
     fetch('/api/wx-lifetime')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((raw) => alive.current && setWxLife(Object.fromEntries(
         NEWA_STATIONS.map((st) => [st.id, newaSeries((raw as Record<string, unknown>)[st.id])]),
       )))
       // no proxy running (plain vite dev): pull each station straight from NRCC
-      .catch(() => loadWx(stamp(Date.now() - 5 * 365 * 86_400_000), setWxLife, alive));
+      .catch(() => loadWx(stamp(Date.now() - 5 * 365 * 86_400_000), setWxLife));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staticView, range]);
 
   const [soilLife, setSoilLife] = useState<Record<string, unknown>>({});
   useEffect(() => {
-    let alive = true;
+    if (!claim('soilLife', archives)) return;
     // the lifetime archive takes Zynect ~a minute to assemble, so it comes through
     // the server proxy (long cache) and the charts pop in when it lands
     fetch('/api/soil-lifetime')
@@ -251,36 +232,30 @@ export function VisualizationsPage() {
           `?dur=P2Y&end-date=${new Date().toISOString()}&reduced=1&grouped=1`;
         return fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
       })
-      .then((raw) => alive && setSoilLife((raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>))
+      .then((raw) => alive.current && setSoilLife((raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>))
       .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [archives]);
 
   useEffect(() => {
-    let alive = true;
+    if (!claim('aqi', liveData)) return;
     fetch('/api/aqi')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((raw) => alive && setState({ status: 'ready', raw: (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown> }))
-      .catch(() => alive && setState({ status: 'error' }));
-    return () => {
-      alive = false;
-    };
-  }, []);
+      .then((raw) => alive.current && setState({ status: 'ready', raw: (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown> }))
+      .catch(() => alive.current && setState({ status: 'error' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveData]);
 
   // The eggs' year-long archive for the history charts.
   const [eggLife, setEggLife] = useState<Record<string, unknown> | null>(null);
   useEffect(() => {
-    let alive = true;
+    if (!claim('eggLife', archives)) return;
     fetch('/api/aqi-lifetime')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((raw) => alive && setEggLife((raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>))
-      .catch(() => alive && setEggLife({}));
-    return () => {
-      alive = false;
-    };
-  }, []);
+      .then((raw) => alive.current && setEggLife((raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>))
+      .catch(() => alive.current && setEggLife({}));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [archives]);
 
   // parsing the multi-MB feed is expensive - do it once per fetch, not per render
   const parsed = useMemo(
@@ -452,18 +427,6 @@ export function VisualizationsPage() {
     return node ? [{ id, node }] : [];
   });
 
-  // the launcher's destinations. Switching stages is a fresh start: any open
-  // sensor cards close too
-  const currentStage: ViewId = staticView ? 'charts' : hexapodView ? 'hexapod' : lidarView ? 'lidar' : forecastView ? 'forecast' : mapView ? 'map' : 'home';
-  const goStage = (id: ViewId) => {
-    setOpen([]);
-    setStaticView(id === 'charts' ? 'air' : null);
-    setForecastView(id === 'forecast');
-    setLidarView(id === 'lidar');
-    setHexapodView(id === 'hexapod');
-    setMapView(id === 'map');
-  };
-
   if (home) return <VisualizationList />;
 
   return (
@@ -481,20 +444,23 @@ export function VisualizationsPage() {
       {/* one temperature unit for every card, parked beside Back - white on
           the imagery so it reads at a glance */}
       {mapView && (
-        // phones: the launcher drops to a second row, so the bar takes the corner
-        <div style={{ position: 'absolute', top: 24, right: isMobile ? 24 : 66, zIndex: 4, display: 'flex', gap: 10 }}>
+        // one row with the X; on phones the X wraps under the bar
+        <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 40, display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 10 }}>
           <span style={{
-            display: 'inline-flex',
+            display: 'inline-flex', alignSelf: 'flex-start', flexShrink: 0,
             border: '1px solid #ffffff', overflow: 'hidden',
             background: 'rgba(14,20,28,0.72)', backdropFilter: 'blur(6px)',
           }}>
             {(['F', 'C'] as const).map((u) => (
               // height pinned so the bar sits exactly as tall as the launcher beside it
-              <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 13px', fontFamily: RESIPLE, fontSize: 12, letterSpacing: '0.1em', background: unit === u ? '#ffffff' : 'transparent', color: unit === u ? '#0e141c' : '#ffffff' }}>
+              // a fixed 30px box, not text-width padding: two squares beside
+              // the X's own square, identical at every zoom
+              <button key={u} onClick={() => setUnit(u)} style={{ appearance: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, flexShrink: 0, padding: 0, fontFamily: RESIPLE, fontSize: 12, letterSpacing: 0, background: unit === u ? '#ffffff' : 'transparent', color: unit === u ? '#0e141c' : '#ffffff' }}>
                 &deg;{u}
               </button>
             ))}
           </span>
+          <StageClose style={{ border: '1px solid #ffffff', background: 'rgba(14,20,28,0.72)', color: '#ffffff' }} />
         </div>
       )}
       {/* ---- the static sheet: the pre-globe sensors page over the stage ---- */}
@@ -532,9 +498,9 @@ export function VisualizationsPage() {
               >
                 {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
-              {/* the sheet's launcher rides the row's right end, styled and
-                  sized like the dropdowns beside it */}
-              <ViewLauncher current={currentStage} onGo={goStage} buttonStyle={{ height: 33, width: 33, border: '1px solid rgba(255,255,255,0.22)', background: '#141c26', backdropFilter: 'none' }} />
+              {/* the sheet's X rides the row's right end, styled and sized
+                  like the dropdowns beside it */}
+              <StageClose style={{ height: 33, width: 33, border: '1px solid rgba(255,255,255,0.22)', background: '#141c26', backdropFilter: 'none' }} />
             </div>
             {staticView === 'air' && EGGS.map((egg) => (
               <details key={egg.id} id={`static-${egg.id}`} open style={{ background: '#141c26', border: `1px solid ${AIR}`, padding: 'clamp(20px,3.5vw,36px)', marginTop: 24, scrollMarginTop: 16 }}>
@@ -631,9 +597,17 @@ export function VisualizationsPage() {
       )}
       {(lidarView || hexapodView) && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 30 }}>
-          <iframe ref={modelFrame} src={hexapodView ? '/hexapod/' : '/lidar/'} title={hexapodView ? 'Interactive Hexapod MKII' : 'Ithaca semantic LiDAR viewer'} allow="fullscreen" style={{ width: '100%', height: '100%', border: 0 }} />
+          {noWebGL ? (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: `#0e141c url(${VISUALIZATIONS.find((v) => v.id === (hexapodView ? 'hexapod' : 'lidar'))?.thumb}) center/cover` }}>
+              <div style={{ maxWidth: 420, padding: 26, background: 'rgba(14,20,28,0.92)', border: '1px solid rgba(255,255,255,0.15)', fontFamily: RESIPLE, fontSize: 15, lineHeight: 1.6, color: '#e6ecf0' }}>
+                This viewer needs WebGL, which this browser has turned off or does not support. Turn on hardware acceleration, or open the page in another browser.
+              </div>
+            </div>
+          ) : (
+            <iframe src={hexapodView ? '/hexapod/' : '/lidar/'} title={hexapodView ? 'Interactive Hexapod MKII' : 'Ithaca semantic LiDAR viewer'} allow="fullscreen" style={{ width: '100%', height: '100%', border: 0 }} />
+          )}
           <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 5 }}>
-            <ViewLauncher current={currentStage} onGo={goStage} />
+            <StageClose />
           </div>
         </div>
       )}
@@ -641,20 +615,19 @@ export function VisualizationsPage() {
         <div style={{ position: 'absolute', inset: 0, zIndex: 30 }}>
           <WeatherForecast />
           <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 5 }}>
-            <ViewLauncher current={currentStage} onGo={goStage} />
+            <StageClose />
           </div>
         </div>
       )}
-      {/* the launcher IS the way between the views. Top right in white on the
-          imagery, sized to the temp bar. The forecast stage and the charts
-          sheet carry their own copies. */}
-      {mapView && (
-        // phones: the temp bar owns the top row, the launcher sits under it
-        <div style={{ position: 'absolute', zIndex: 40, top: isMobile ? 62 : 24, right: 24 }}>
-          <ViewLauncher current={currentStage} onGo={goStage} ink="#ffffff" buttonStyle={{ border: '1px solid #ffffff', background: 'rgba(14,20,28,0.72)' }} />
-        </div>
-      )}
     </section>
+  );
+}
+
+// the way out of a stage: an X back to the visualizations menu. A plain
+// link, so the hash change resets every stage and closes open cards
+function StageClose({ style }: { style?: CSSProperties }) {
+  return (
+    <a href="#/sensors" aria-label="Back to visualizations" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 32, height: 32, flex: '0 0 auto', alignSelf: 'flex-start', aspectRatio: '1', border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(14,20,28,0.82)', backdropFilter: 'blur(6px)', color: '#e6ecf0', fontFamily: RESIPLE, fontSize: 20, lineHeight: 1, ...style }}>×</a>
   );
 }
 

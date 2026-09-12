@@ -126,13 +126,6 @@ function nearestFrame(frames: { valid: string }[], time: number): number {
     Math.abs(Date.parse(frame.valid) - time) < Math.abs(Date.parse(frames[best].valid) - time) ? i : best, 0);
 }
 
-function freshness(layer: WxLayer, now: number): string | null {
-  const end = Date.parse(layer.valid_until ?? layer.frames[layer.frames.length - 1]?.valid ?? '');
-  if (layer.kind === 'forecast' && now > end) return 'Forecast ended';
-  const due = layer.expected_update_at ? Date.parse(layer.expected_update_at)
-    : Date.parse(layer.init ?? layer.frames[0]?.valid ?? '') + layer.stale_minutes * 60_000;
-  return layer.kind === 'obs' && now > due ? 'Radar delayed' : null;
-}
 
 export default function WeatherForecast() {
   const [small, setSmall] = useState(INITIAL_SMALL);
@@ -181,8 +174,11 @@ export default function WeatherForecast() {
     return () => { alive = false; clearInterval(interval); document.removeEventListener('visibilitychange', refresh); };
   }, [retry]);
 
+  // phones carry the four layers that read at that size; accumulation surfaces
+  // (precip, snow) need the legend and the wide map to mean anything
   const layers = typeof manifest === 'object' ? manifest.layers.filter(l =>
-    !['stormcast_rain', 'stormcast_precip'].includes(l.id) && l.frames.length > 0)
+    !['stormcast_rain', 'stormcast_precip'].includes(l.id) && l.frames.length > 0
+    && !(small && ['precip', 'snow'].includes(l.id)))
     .sort((a, b) => Number(b.id.endsWith('refc')) - Number(a.id.endsWith('refc'))) : [];
   const layer = layers.find(l => l.id === layerId) ?? layers.find(l => l.id === 'stormcast_refc') ?? layers.find(l => l.id === 'radar_refc') ?? layers[0] ?? null;
   const groupOf = (l: WxLayer) => l.id === 'radar_refc' || l.source.includes('MRMS') ? 'MRMS' : l.group ??
@@ -191,6 +187,9 @@ export default function WeatherForecast() {
   const groups = [...new Set(layers.map(groupOf))].sort((a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b));
   const [openGroup, setOpenGroup] = useState<string | null | undefined>(undefined);
   const shownGroup = openGroup === undefined ? (layer ? groupOf(layer) : null) : openGroup;
+  // a source reads "GeoData StormScope <sep> DGX Spark": the model, then the
+  // box it ran on. Phones keep the model and drop the hardware credit.
+  const sourceLabel = (source: string) => (small ? source.split('\u00b7')[0].trim() : source.replace(/\s*\u00b7\s*/g, ', '));
   const idx = layer ? nearestFrame(layer.frames, requestedTime ?? now) : 0;
   const selectedFrame = layer?.frames[idx];
 
@@ -217,7 +216,6 @@ export default function WeatherForecast() {
     ? [{ url: `${WX_BASE}/${displayed.frame.file}`, bounds: displayed.layer.bounds, opacity: displayed.layer.opacity,
       tiles: displayed.layer.tiles }]
     : [];
-  const stale = layer ? freshness(layer, now) : null;
 
   // the map wants a target; the forecast stage just parks on the region
   const target = useRef<MapTarget>({ ...HOME, nonce: 0 }).current;
@@ -269,7 +267,7 @@ export default function WeatherForecast() {
         initial={HOME}
         dur={1}
         tileUrl={LIGHT_TILES}
-        attribution={`Basemap: Esri${layer ? `. ${layer.source.replace(/\s*·\s*/g, ', ')}` : ''}`}
+        attribution={small ? '' : `Basemap: Esri${layer ? `. ${sourceLabel(layer.source)}` : ''}`}
         minZ={2}
         maxZ={15}
         overlays={overlays}
@@ -316,10 +314,9 @@ export default function WeatherForecast() {
           );
         })()}
         {layer && (
-          <div style={{ fontFamily: RESIPLE, fontSize: 10.5, letterSpacing: '0.06em', color: stale ? '#8a5f10' : '#3d4a55', textShadow: HALO }}>
-            {layer.kind === 'obs' ? 'Observed: NOAA MRMS radar' : `Forecast: ${layer.source.replace(/\s*·\s*/g, ', ')}`}
+          <div style={{ fontFamily: RESIPLE, fontSize: 10.5, letterSpacing: '0.06em', color: '#3d4a55', textShadow: HALO }}>
+            {layer.kind === 'obs' ? 'Observed: NOAA MRMS radar' : `Forecast: ${sourceLabel(layer.source)}`}
             {layer.init ? `, ${layer.kind === 'obs' ? 'observed' : 'initialized'} ${fmtValid(layer.init)}` : ''}
-            {stale && <strong style={{ display: 'block', color: '#8a4d00', marginTop: 5 }}>{stale}</strong>}
             {layer.accumulation_start && <div style={{ marginTop: 5 }}>Accumulated from {fmtValid(layer.accumulation_start)}</div>}
           </div>
         )}
@@ -345,7 +342,7 @@ export default function WeatherForecast() {
 
       {/* bottom-center: the timebar - a native range input is the whole widget */}
       {layer && layer.frames.length > 1 && (
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: small ? 30 : 34, zIndex: 4, ...PANEL, padding: '10px 16px', width: 'min(560px, calc(100vw - 32px))' }}>
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: small ? 30 : 34, zIndex: 4, ...PANEL, padding: small ? '6px 12px' : '10px 16px', width: 'min(560px, calc(100vw - 32px))' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <input
               type="range"
@@ -356,29 +353,35 @@ export default function WeatherForecast() {
               onChange={(e) => setRequestedTime(Date.parse(layer.frames[Number(e.target.value)].valid))}
               aria-label="Forecast valid time"
               aria-valuetext={fmtValid(layer.frames[idx].valid)}
-              style={{ flex: 1, minWidth: 0, accentColor: '#e6ecf0' }}
+              style={{ flex: 1, minWidth: 0, height: 28, accentColor: '#e6ecf0' }}
             />
-            <button
-              onClick={() => { setNow(Date.now()); setRequestedTime(null); }}
-              aria-pressed={requestedTime === null}
-              title="Show the forecast nearest the current time"
-              style={{ appearance: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                minWidth: 52, minHeight: 32, padding: '5px 10px', fontFamily: RESIPLE, fontSize: 11, letterSpacing: '0.08em',
-                textTransform: 'uppercase', color: requestedTime === null ? '#0e141c' : '#e6ecf0',
-                background: requestedTime === null ? '#e6ecf0' : 'transparent', border: '1px solid #8fa0ab', cursor: 'pointer' }}
-            >Now</button>
+            {!small && (
+              <button
+                onClick={() => { setNow(Date.now()); setRequestedTime(null); }}
+                aria-pressed={requestedTime === null}
+                title="Show the forecast nearest the current time"
+                style={{ appearance: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  minWidth: 52, minHeight: 32, padding: '5px 10px', fontFamily: RESIPLE, fontSize: 11, letterSpacing: '0.08em',
+                  textTransform: 'uppercase', color: requestedTime === null ? '#0e141c' : '#e6ecf0',
+                  background: requestedTime === null ? '#e6ecf0' : 'transparent', border: '1px solid #8fa0ab', cursor: 'pointer' }}
+              >Now</button>
+            )}
             <span style={{ fontSize: 12, whiteSpace: 'nowrap', minWidth: small ? 74 : 92, textAlign: 'right' }}>{fmtValid(displayed?.frame.valid ?? layer.frames[idx].valid)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#8fa0ab', marginTop: 3 }}>
-            <span>{fmtValid(layer.frames[0].valid)}</span>
-            <span>{fmtValid(layer.frames[layer.frames.length - 1].valid)}</span>
-          </div>
+          {/* the span's two ends only fit where there is room; the picked
+              time above already says where the scrubber sits */}
+          {!small && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#8fa0ab', marginTop: 3 }}>
+              <span>{fmtValid(layer.frames[0].valid)}</span>
+              <span>{fmtValid(layer.frames[layer.frames.length - 1].valid)}</span>
+            </div>
+          )}
         </div>
       )}
       {/* single-frame layers (radar) get the valid time where the bar would be */}
       {layer && layer.frames.length === 1 && (
         <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: small ? 30 : 34, zIndex: 4, ...PANEL, padding: '8px 14px', fontSize: 12 }}>
-          {fmtValid(layer.frames[0].valid)}{stale && <span style={{ color: '#d9a13c' }}> (stale)</span>}
+          {fmtValid(layer.frames[0].valid)}
         </div>
       )}
 
